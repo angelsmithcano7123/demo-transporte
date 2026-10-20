@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prototipo · pasajero y conductor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--navy:#123047;--teal:#0F766E;--accent:#FFC857;--bg:#F5F7FA;--card:#fff;--ink:#243342;--mut:#6B7280;--ok:#1F9D63;--bad:#D64545;--line:#E7E2D9}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{height:100%;margin:0}body{font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;transition:transform .12s ease,box-shadow .2s,filter .2s,background .2s}button:active{transform:scale(.94);filter:brightness(.94)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}@keyframes pop{0%{transform:scale(.82)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes drop{0%{transform:translateY(-34px);opacity:0}70%{transform:translateY(4px)}100%{transform:none;opacity:1}}@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes radar{from{transform:scale(.2);opacity:.8}to{transform:scale(1);opacity:0}}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,200,87,.55)}50%{box-shadow:0 0 0 12px rgba(255,200,87,0)}}
+#map{position:fixed;inset:0}
+.fab{position:fixed;top:12px;left:12px;z-index:1000;width:50px;height:50px;border-radius:50%;border:0;background:#fff;box-shadow:0 3px 12px rgba(0,0,0,.3);font-size:22px}
+.fab.has::after{content:"";position:absolute;top:8px;right:8px;width:11px;height:11px;border-radius:50%;background:var(--bad);border:2px solid #fff}
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1100;opacity:0;pointer-events:none;transition:opacity .25s}body.open #scrim{opacity:1;pointer-events:auto}
+#drawer{position:fixed;top:0;bottom:0;left:0;width:82%;max-width:330px;background:#fff;z-index:1200;transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding:18px 0;overflow:auto;display:flex;flex-direction:column}body.open #drawer{transform:none}
+.dhd{display:flex;gap:12px;align-items:center;padding:6px 18px 16px;border-bottom:1px solid var(--line)}
+.av{width:52px;height:52px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:none}
+.it{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:0;background:none;padding:15px 18px;font-size:17px}.it:active{background:var(--bg)}
+.bdg{background:var(--bad);color:#fff;border-radius:12px;font-size:12px;padding:1px 8px;font-weight:700}
+.sh{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:var(--bg);border-radius:26px 26px 0 0;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));max-height:64vh;overflow:auto;box-shadow:0 -6px 22px rgba(0,0,0,.22);max-width:520px;margin:0 auto;animation:up .4s cubic-bezier(.2,.8,.2,1)}
+.svcs{display:flex;gap:10px}.svcs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px;border-radius:16px;border:2px solid transparent;background:#fff;font-weight:700}.svcs button span{font-size:28px}.svcs button.on{border-color:var(--accent);background:#FFF4D9}
+.row{background:var(--card);border-radius:16px;padding:13px;margin:9px 0;box-shadow:0 1px 3px rgba(0,0,0,.06);animation:rise .32s ease both}
+#q{width:100%;font-size:17px;padding:15px;border-radius:16px;border:0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-top:6px}#q:focus{outline:2px solid var(--accent)}
+input.t,textarea.t,select{font:inherit;width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#fff;margin-top:6px}
+.res div{padding:12px 8px;background:#fff;border-bottom:1px solid var(--line);animation:rise .25s ease both}.res div:first-child{border-radius:14px 14px 0 0}
+.mut{color:var(--mut);font-size:14px;margin:4px 0}.err{color:var(--bad);font-size:14px}.lnk{text-decoration:underline}
+.price{display:flex;align-items:center;justify-content:center;gap:12px;margin:8px 0}.price button{width:54px;height:54px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.12);font-size:28px}
+.price output{font-size:34px;font-weight:800;min-width:160px;text-align:center;display:inline-block;animation:pop .28s}
+.cta{width:100%;min-height:54px;border:0;border-radius:16px;background:var(--accent);color:#123047;font-size:17px;font-weight:800;margin-top:7px;box-shadow:0 6px 16px rgba(255,200,87,.35)}.cta:active{box-shadow:0 1px 4px rgba(255,200,87,.3)}
+.cta.main{animation:pulse 2s infinite}.cta.bad{background:#fff;color:var(--bad);box-shadow:none;border:1px solid var(--bad)}.cta.sec{background:var(--navy);color:#fff;box-shadow:0 6px 16px rgba(11,31,75,.3)}.cta.dis{opacity:.45;pointer-events:none}
+.two{display:flex;gap:8px}.two .cta{flex:1}.top{display:flex;justify-content:space-between;align-items:center;gap:8px}.big{font-size:23px;font-weight:800}
+.chip{font-size:12px;padding:2px 9px;border-radius:10px;background:#E6F6EE;color:var(--ok);font-weight:600}.chip.w{background:#FFF4D9;color:#9a5a00}
+.tag{display:inline-block;font-size:13px;font-weight:700;padding:3px 11px;border-radius:12px;margin-right:4px}.tag.n{background:#FFE9A8;color:#123047}.tag.m{background:#DCE8FF;color:#1B4DB8}
+.c2{border:0;border-radius:12px;padding:9px 13px;font-weight:700;background:var(--line)}.c2.on{background:#FFF4D9;outline:2px solid var(--accent)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ok);margin-right:6px}
+.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0 2px}.bar i{display:block;height:100%;background:var(--accent);width:100%}
+.dim{opacity:.55}.code{font-size:30px;letter-spacing:8px;font-weight:800;text-align:center;border:2px dashed var(--accent);border-radius:16px;padding:8px;margin:8px 0}
+.pin{width:22px;height:22px;border-radius:50%;border:4px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5);animation:drop .5s}
+.star{font-size:32px;border:0;background:none;color:#ccc}.star.on{color:var(--accent);animation:pop .25s}
+.panel{position:fixed;inset:0;background:var(--bg);z-index:1250;overflow:auto;padding:16px;display:none;max-width:520px;margin:0 auto}.panel.on{display:block;animation:up .3s}
+#toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 15px;border-radius:14px;z-index:2100;display:none;max-width:90%;animation:rise .25s}
+/* conductor */
+#dv{position:fixed;inset:0;z-index:1050;background:var(--bg);display:none;flex-direction:column;max-width:520px;margin:0 auto}
+.dhead{background:#123047;color:#fff;padding:12px 12px 56px}.dtop{display:flex;justify-content:space-between;align-items:center}
+.ic{width:44px;height:44px;border:0;background:none;color:#fff;font-size:22px;position:relative}.ic .badge{position:absolute;top:8px;right:8px;width:10px;height:10px;border-radius:50%;background:var(--bad)}
+.pill{position:relative;width:210px;height:46px;border-radius:30px;background:#3a3b40;display:flex;font-weight:700;font-size:15px;user-select:none}.pill span{flex:1;display:flex;align-items:center;justify-content:center;z-index:1}
+.pill b{position:absolute;top:4px;left:4px;height:38px;width:101px;border-radius:24px;background:#ff6b6b;transition:left .28s cubic-bezier(.2,.8,.2,1),background .28s}.pill.on b{left:105px;background:var(--ok)}
+.cards2{display:flex;gap:10px;margin:14px -2px -50px}.card2{flex:1;background:#fff;color:var(--ink);border-radius:18px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,.2);animation:rise .35s ease both}
+#dc{flex:1;overflow:auto;padding:62px 14px 14px}#dn{display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+#dn button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px}#dn button b{font-size:22px;font-weight:400;transition:transform .2s}#dn button.on{color:var(--ink);font-weight:700}#dn button.on b{transform:scale(1.25)}
+.radar{position:relative;height:300px;display:flex;align-items:center;justify-content:center}.radar i{position:absolute;width:280px;height:280px;border-radius:50%;border:2px solid #cdeb7a;animation:radar 3s infinite}.radar i:nth-child(2){animation-delay:1s}.radar i:nth-child(3){animation-delay:2s}.radar b{font-size:34px;z-index:1;background:#fff;border-radius:50%;width:70px;height:70px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.tg{display:flex;justify-content:space-between;align-items:center;padding:12px 0}.sw{width:50px;height:30px;border-radius:20px;background:#ccc;position:relative;border:0;transition:background .2s;flex:none}.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}.sw.on{background:#0F766E}.sw.on::after{left:23px}
+details{background:#fff;border-radius:14px;padding:12px;margin:8px 0}summary{font-weight:700}
+
+.sh::before{content:"";display:block;width:44px;height:5px;border-radius:3px;background:#B9C2D3;margin:0 auto 10px}
+.dhd{background:var(--navy);color:#fff;border-bottom:0}.dhd .mut{color:#C9D3EA}
+.pk{background:#DDF1EF;border-left:6px solid #0F766E}#q{border-left:6px solid var(--accent)}
+#quote .price{background:var(--navy);color:#fff;border-radius:22px;padding:14px;margin:10px 0}#quote .price button{background:var(--accent);color:#123047}
+#quote .tg{background:#fff;border-radius:14px;padding:10px 14px;margin:8px 0}.row.pend{border-left:6px solid var(--accent)}.row.req{background:#FFF4D9;border-left:6px solid var(--accent)}
+.seg{position:relative;width:300px;height:46px;border-radius:30px;background:rgba(255,255,255,.14);display:flex;font-weight:700;font-size:14px;user-select:none}.seg span{flex:1;display:flex;align-items:center;justify-content:center;z-index:1;cursor:pointer}
+.seg b{position:absolute;top:4px;left:4px;height:38px;width:96px;border-radius:24px;background:#8a8d96;transition:left .28s cubic-bezier(.2,.8,.2,1),background .28s}.seg.s1 b{left:102px;background:#ff8a3d}.seg.s2 b{left:198px;background:var(--ok)}
+#rq{position:fixed;inset:0;z-index:1300;background:var(--bg);display:none;flex-direction:column;max-width:520px;margin:0 auto}#rq.on{display:flex;animation:up .3s}#rmapw{position:relative;flex:1;min-height:130px}#rmap{position:absolute;inset:0}#rinfo{flex:none;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.15);margin-top:-18px;position:relative;z-index:1001}
+.ab{display:inline-flex;width:24px;height:24px;border-radius:50%;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;margin-right:6px}.ab.a{background:#0F766E}.ab.b{background:var(--accent);color:#123047}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1500;display:none;align-items:flex-end;justify-content:center}#modal.on{display:flex}.mbox{background:#fff;border-radius:26px 26px 0 0;width:100%;max-width:520px;padding:24px;animation:up .3s}
+.tabs2{display:flex;gap:8px;justify-content:center;margin-top:10px}
+
+.xbtn{position:absolute;top:12px;left:12px;z-index:1000;width:48px;height:48px;border-radius:50%;border:0;background:#fff;font-size:20px;box-shadow:0 3px 12px rgba(0,0,0,.3)}#rchip{position:absolute;top:12px;right:12px;left:72px;z-index:1000;background:var(--navy);color:#fff;border-radius:14px;padding:12px;font-weight:700;text-align:center}#xb[style*="none"]+#rchip{left:12px}
+.xl{min-height:62px;font-size:19px}.addr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0}.lnkb{width:100%;border:0;background:none;color:var(--mut);padding:10px;font-weight:700}
+.stp{display:flex;align-items:center;gap:4px;margin-top:7px}.stp button{width:48px;height:62px;border:0;border-radius:14px;background:var(--accent);font-size:26px;color:var(--navy)}.stp output{min-width:84px;text-align:center;font-weight:800;font-size:17px}
+.three{display:flex;gap:8px;margin:8px 0}.big3{flex:1;min-height:66px;border:0;border-radius:16px;background:#EAF0F6;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:26px}.big3 span{font-size:12px;font-weight:700}
+#chat{position:fixed;inset:0;z-index:1350;background:var(--bg);display:none;flex-direction:column;max-width:520px;margin:0 auto}#chat.on{display:flex;animation:up .3s}.chd{background:var(--navy);color:#fff;padding:12px;display:flex;justify-content:space-between;align-items:center}
+#cm{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px}.msg{max-width:78%;padding:10px 13px;border-radius:16px;animation:rise .2s}.msg.me{align-self:flex-end;background:var(--accent);color:var(--navy)}.msg.ot{align-self:flex-start;background:#fff}.cin{display:flex;gap:8px;padding:10px;background:#fff}#cq{display:flex;gap:6px;overflow:auto;padding:8px 12px}
+#dc{background:#E9EFF5}.sh{background:#E9EFF5}
+
+.qw{display:flex;gap:8px;align-items:center}.qw #q{flex:1;margin-top:0}.mapbtn{flex:none;width:54px;height:54px;border:0;border-radius:14px;background:var(--teal);color:#fff;font-size:26px;box-shadow:0 3px 8px rgba(15,118,110,.35)}.pk .mapbtn{width:46px;height:46px;font-size:22px}
+#pk{position:fixed;inset:0;z-index:1300;background:#fff;display:none;flex-direction:column;max-width:520px;margin:0 auto}#pk.on{display:flex;animation:up .3s}#pmapw{position:relative;flex:1}#pmap{position:absolute;inset:0}
+.pcenter{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:46px;z-index:1000;pointer-events:none;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))}.pcard{padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+.pchip{position:absolute;top:12px;left:72px;right:12px;z-index:1000;background:var(--navy);color:#fff;border-radius:14px;padding:12px;font-weight:700;text-align:center}
+img.av{object-fit:cover}.it svg{vertical-align:middle;margin-right:4px}.row.eta{background:#DDF1EF;border-left:6px solid var(--teal);text-align:center}
+
+.pcenter{font-size:0!important;transition:transform .18s}.pcenter.lift{transform:translate(-50%,-122%)}.pdot{position:absolute;left:50%;top:50%;width:18px;height:7px;margin:-3px 0 0 -9px;border-radius:50%;background:rgba(0,0,0,.35);z-index:999;pointer-events:none}
+.mk{width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.4);font-size:16px}
+.plate{display:inline-block;background:#FFC857;color:#123047;border:2px solid #123047;border-radius:6px;padding:1px 10px;font-weight:800;letter-spacing:2px;margin-top:4px}
+.pcard2{background:#fff;border-radius:22px;padding:14px;margin:10px 0;box-shadow:0 2px 10px rgba(18,48,71,.1);animation:rise .3s ease both}.pbig{display:flex;align-items:center;justify-content:space-between;margin:8px 0}
+.pbig output{font-size:38px;font-weight:800;color:var(--navy);animation:pop .28s}.rb{width:52px;height:52px;border-radius:50%;border:2px solid var(--navy);background:#fff;color:var(--navy);font-size:26px}
+.meter{position:relative;height:8px;border-radius:5px;background:linear-gradient(90deg,#E5776F,#FFC857,#4FB286);margin:10px 0 6px}.meter i{position:absolute;top:-5px;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--navy);transform:translateX(-50%);transition:left .25s}
+.chips2{display:flex;gap:6px;overflow:auto;margin-top:8px}.chips2 .c2{white-space:nowrap}.pill2{font-size:12px;font-weight:700;padding:3px 10px;border-radius:10px}
+
+#lg{position:fixed;inset:0;z-index:2000;display:none;background:linear-gradient(160deg,#123047,#0F766E);color:#fff;align-items:center;justify-content:center;padding:24px;overflow:auto}#lg.on{display:flex}
+.lgbox{width:100%;max-width:380px;text-align:center;animation:rise .35s ease both}.lgbox.light{background:#fff;color:var(--ink);border-radius:24px;padding:22px;text-align:left}
+.gbtn{width:100%;min-height:56px;border:0;border-radius:16px;background:#fff;color:#243342;font-size:17px;font-weight:700;margin:6px 0;display:flex;align-items:center;justify-content:center;gap:10px}.gbtn.dis{opacity:.55}.gbtn b{font-size:22px}
+.lgn{font-size:12px;opacity:.8;margin-top:18px}.acct{width:100%;display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px;margin:8px 0}
+.spin{width:44px;height:44px;border:4px solid rgba(255,255,255,.3);border-top-color:#FFC857;border-radius:50%;margin:0 auto 12px;animation:spn 1s linear infinite}@keyframes spn{to{transform:rotate(360deg)}}
+#wz{position:fixed;inset:0;z-index:1300;background:var(--bg);display:none;flex-direction:column;max-width:520px;margin:0 auto;padding:14px}#wz.on{display:flex;animation:up .3s}.wzh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.wzb{flex:1;overflow:auto;padding:4px 2px}.wzf{padding-top:8px}
+
+#rinfo .av{width:64px;height:64px;font-size:26px}select.t:disabled{opacity:.5}small{font-weight:600;font-size:12px}
+
+.big3{flex:1;min-height:92px;border:3px solid #123047;border-radius:22px;background:#E4EEF8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:0;padding:6px 2px;min-width:0}
+.big3 span{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.2px;color:#123047}.big3:active{background:#d3e4f4}
+.it svg{width:28px;height:28px}.three{gap:6px}
+</style></head><body>
+<div id="map"></div>
+<button class="fab" id="fab" onclick="openDrawer()" aria-label="Menú">☰</button>
+<div id="scrim" onclick="closeDrawer()"></div><div id="drawer"></div><div id="toast"></div><div id="panel" class="panel"></div>
+<div id="sheet" class="sh">
+ <div id="planBox">
+  <div class="svcs"><button id="bm" onclick="svc('moto')"><span>🏍️</span>Moto</button><button id="bc" onclick="svc('car')"><span>🚗</span>Auto</button></div>
+  <div class="row pk" style="margin:8px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0">🟢 <span id="pl">Obteniendo tu ubicación…</span></span><button class="mapbtn" onclick="openPick('a')" aria-label="Elegir recogida en el mapa"><span class="mi"></span></button></div>
+  <div class="qw"><input id="q" placeholder="¿A dónde y por cuánto?"><button class="mapbtn" onclick="openPick('b')" aria-label="Elegir destino en el mapa"><span class="mi"></span></button></div><div class="res" id="res"></div><div id="quote"></div>
+ </div><div id="offBox" hidden></div>
+</div>
+<div id="dv"><div class="dhead" id="dh"></div><div id="dc"></div>
+ <div id="dn"><button data-t="req" onclick="D.tab='req';dr()"><b></b>Solicitudes</button><button data-t="per" onclick="D.tab='per';dr()"><b></b>Desempeño</button><button data-t="wal" onclick="D.tab='wal';dr()"><b></b>Cartera</button></div></div>
+<div id="rq"><div id="rmapw"><div id="rmap"></div><button class="xbtn" id="xb" onclick="closeReq()">✕</button><div id="rchip"></div></div><div id="rinfo"></div></div><div id="wz"></div><div id="lg"></div><div id="pk"><div id="pmapw"><div id="pmap"></div><div class="pcenter" id="ppin"></div><div class="pdot"></div><button class="xbtn" onclick="closePick()">✕</button><div class="pchip" id="ptitle"></div></div><div class="pcard"><div id="plbl" class="mut" style="font-size:16px;margin:0 0 8px">…</div><button class="cta main xl" onclick="pkOk()">Confirmar este punto</button><button class="lnkb" id="pgps" onclick="pkGps()">📍 Usar mi ubicación actual</button></div></div><div id="chat"><div class="chd"><button class="c2" onclick="closeChat()">←</button><b id="cname"></b><span></span></div><div id="cq"></div><div id="cm"></div><div class="cin"><input id="ci2" class="t" style="margin:0" placeholder="Escribe un mensaje" onkeydown="if(event.key==='Enter')sendMsg()"><button class="cta" style="width:96px;margin:0" onclick="sendMsg()">Enviar</button></div></div><div id="modal"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const $=s=>document.querySelector(s),f=n=>'$'+n.toLocaleString('es-CO'),r100=n=>Math.round(n/100)*100;
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const C={moto:{ref:2000,perKmMin:1000,floorDay:4000,floorNight:5000},car:{ref:3000,perKmMin:1500,floorDay:6000,floorNight:7500},dayStart:7,dayEnd:20,offerTTL:20,city:[11.2408,-74.1990]}; // auto = PROVISIONAL
+function hourBog(){return +new Intl.DateTimeFormat('en-US',{hour:'numeric',hour12:false,timeZone:'America/Bogota'}).format(new Date())%24}
+function tariff(km,sv=S.svc){const c=C[sv],h=hourBog(),night=!(h>=C.dayStart&&h<C.dayEnd),fl=night?c.floorNight:c.floorDay;return{night,ref:Math.max(r100(km*c.ref),fl),min:Math.max(r100(km*c.perKmMin),fl)}}
+const map=L.map('map',{zoomControl:false}).setView(C.city,14);
+const TP=[['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}','Esri'],['https://tile.openstreetmap.org/{z}/{x}/{y}.png','OpenStreetMap']];
+let ti=0,te=0,tl;function tiles(){if(tl)tl.remove();tl=L.tileLayer(TP[ti][0],{maxZoom:19,attribution:'© '+TP[ti][1]}).addTo(map);te=0;tl.on('tileerror',()=>{if(++te>=4&&ti<TP.length-1){ti++;tiles()}})}tiles();
+const ic=c=>L.divIcon({className:'',html:`<div class="pin" style="background:${c}"></div>`,iconSize:[22,22],iconAnchor:[11,11]});
+const PAYS=['Efectivo','Nequi','Llave','DaviPlata','Bancolombia'],TAGS=['Educado','Buena conducción','Buena persona','Vehículo limpio','Puntual'],ME='Tú (conductor de prueba)';
+const SEED={'Carlos M.':{d:[1,1,6,20,100],c:['Muy educado y llegó rápido.','Buena conducción, me sentí seguro.','Excelente persona.']},'Laura P.':{d:[2,3,8,30,43],c:['Carro limpio y buena atención.','Puntual y amable.']},'Andrés R.':{d:[3,4,10,15,9],c:['Buen servicio, un poco lento para llegar.','Conductor tranquilo.']}};
+let RV=ld('rv',{}),RT={stars:0,tags:[],text:'',sent:false};
+function stats(n){const d=(SEED[n]?SEED[n].d:[0,0,0,0,0]).slice(),rv=RV[n]||[];rv.forEach(r=>d[r.stars-1]++);const t=d.reduce((a,b)=>a+b,0),avg=t?d.reduce((a,v,i)=>a+v*(i+1),0)/t:0;
+ return{t,avg,pc:d.map(v=>t?Math.round(v*100/t):0),cm:[...rv.filter(r=>r.text||r.tags.length).map(r=>({tx:r.text,tg:r.tags,d:r.d})),...(SEED[n]?SEED[n].c.map(x=>({tx:x,tg:[],d:'dato de ejemplo'})):[])]}}
+const star=n=>{const s=stats(n);return s.t?`★ ${s.avg.toFixed(1).replace('.',',')} (${s.t})`:'Conductor nuevo'};
+function showDrv(n){const s=stats(n),p=$('#panel');p.className='panel on';
+ p.innerHTML=`<button class="c2" onclick="closeP()">← Volver</button><h2>${esc(n)}</h2><div class="big">${star(n)}</div>`+
+ (s.t?[5,4,3,2,1].map(k=>`<div class="top" style="margin:4px 0"><span style="width:34px">${k} ★</span><div class="bar" style="flex:1"><i style="width:${s.pc[k-1]}%"></i></div><span style="width:44px;text-align:right">${s.pc[k-1]}%</span></div>`).join(''):'<p class="mut">Aún sin calificaciones.</p>')+
+ '<h3>Comentarios</h3>'+(s.cm.map(c=>`<div class="row">${c.tg.map(t=>`<span class="chip">${esc(t)}</span> `).join('')} ${esc(c.tx)}<div class="mut">${esc(c.d)}</div></div>`).join('')||'<div class="row mut">Aún no hay comentarios.</div>')}
+function svgi(n,c='#123047',z=28){const Y='#FFC857',a=`fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"`,I={
+ bell:`<path ${a} d="M24 8c-7 0-12 5-12 12v7l-4 7h32l-4-7v-7c0-7-5-12-12-12z"/><path ${a} d="M19 38a5 5 0 0 0 10 0M22 8a2 2 0 0 1 4 0"/><circle cx="36" cy="12" r="5" fill="${Y}"/>`,
+ wallet:`<path ${a} d="M12 19l17-10 5 10"/><path d="M16 18l13-7 3 7z" fill="${Y}"/><path ${a} d="M8 20h28a4 4 0 0 1 4 4v13a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4z"/><rect x="33" y="27" width="11" height="8" rx="4" fill="${Y}" stroke="${c}" stroke-width="3"/>`,
+ perf:`<path ${a} d="M6 41h36"/><rect x="9" y="29" width="7" height="12" rx="1.5" ${a}/><rect x="20" y="23" width="7" height="18" rx="1.5" ${a}/><rect x="31" y="16" width="7" height="25" rx="1.5" fill="${Y}" stroke="${c}" stroke-width="3"/><path d="M10 22l8-8 6 6 12-12M30 8h6v6" fill="none" stroke="${Y}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`,
+ play:`<path ${a} d="M24 5a19 19 0 1 1-19 19" stroke-dasharray="6 5"/><path d="M18 15l16 9-16 9z" fill="${Y}" stroke="${c}" stroke-width="3" stroke-linejoin="round"/><circle cx="38" cy="10" r="5" fill="#fff" stroke="${c}" stroke-width="3"/>`,
+ list:`<path ${a} d="M16 12h26M16 24h26M16 36h26"/><circle cx="8" cy="12" r="2.5" fill="${Y}"/><circle cx="8" cy="24" r="2.5" fill="${Y}"/><circle cx="8" cy="36" r="2.5" fill="${Y}"/>`,
+ chat:`<path ${a} d="M9 12h22a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H20l-8 7v-7H9a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4z"/><circle cx="38" cy="11" r="5.5" fill="${Y}"/>`,
+ call:`<g transform="translate(4,9) scale(1.35)"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M29 8a14 14 0 0 1 11 11M29 15a7 7 0 0 1 5 5" fill="none" stroke="${Y}" stroke-width="3" stroke-linecap="round"/>`,
+ mobile:`<rect x="14" y="5" width="20" height="38" rx="5" ${a}/><path d="M21 11h6" stroke="${Y}" stroke-width="3" stroke-linecap="round"/><path ${a} d="M14 35h20"/>`,
+ nav:`<circle cx="24" cy="24" r="17" ${a}/><path ${a} d="M24 7v4M24 37v4M7 24h4M37 24h4"/><g transform="rotate(45 24 24)"><path d="M24 12l5 12-5 12-5-12z" fill="${Y}" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/></g>`,
+ map:`<path ${a} d="M5 15l12-6 12 6 12-6v27l-12 6-12-6-12 6z"/><path ${a} d="M17 9v27M29 15v27"/><path d="M37 3a6.5 6.5 0 0 0-6.5 6.5C30.5 15 37 22 37 22s6.5-7 6.5-12.5A6.5 6.5 0 0 0 37 3z" fill="${Y}" stroke="${c}" stroke-width="2.5"/><circle cx="37" cy="9.5" r="2" fill="#fff"/>`,
+ history:`<circle cx="24" cy="24" r="17" ${a}/><path ${a} d="M24 13v11l7 4"/><circle cx="24" cy="24" r="2" fill="${Y}"/>`,
+ shield:`<path ${a} d="M24 5l15 5v12c0 9-6 16-15 21C15 38 9 31 9 22V10z"/><path d="M17 24l5 5 9-10" fill="none" stroke="${Y}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+ sliders:`<path ${a} d="M8 14h32M8 24h32M8 34h32"/><circle cx="17" cy="14" r="4" fill="${Y}" stroke="${c}" stroke-width="3"/><circle cx="32" cy="24" r="4" fill="${Y}" stroke="${c}" stroke-width="3"/><circle cx="21" cy="34" r="4" fill="${Y}" stroke="${c}" stroke-width="3"/>`,
+ user:`<circle cx="24" cy="16" r="8" ${a}/><path ${a} d="M8 42c0-9 7-14 16-14s16 5 16 14"/><circle cx="37" cy="10" r="4" fill="${Y}"/>`,
+ help:`<circle cx="24" cy="24" r="17" ${a}/><path ${a} d="M18.5 19a5.5 5.5 0 1 1 8 5c-1.5 1-2.5 2-2.5 4"/><circle cx="24" cy="34" r="2.2" fill="${Y}"/>`,
+ logout:`<path ${a} d="M20 7h-9a4 4 0 0 0-4 4v26a4 4 0 0 0 4 4h9"/><path d="M28 16l8 8-8 8M36 24H18" fill="none" stroke="${Y}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`};
+ return `<svg viewBox="0 0 48 48" width="${z}" height="${z}" aria-hidden="true">${I[n]}</svg>`}
+function icL(t,bg,fg='#fff'){return L.divIcon({className:'',html:`<div class="mk" style="background:${bg};color:${fg}">${t}</div>`,iconSize:[34,34],iconAnchor:[17,17]})}
+function pinSvg(k){const c=k=='a'?'#0F766E':'#FFC857',i=k=='a'?'#fff':'#123047';return `<svg viewBox="0 0 48 64" width="48" height="64"><path d="M24 3C12.5 3 4 11.6 4 22.5 4 37 24 61 24 61s20-24 20-38.5C44 11.6 35.5 3 24 3z" fill="${c}" stroke="#fff" stroke-width="3.5"/><circle cx="24" cy="23" r="8.5" fill="${i}"/></svg>`}
+const TG={5:['Puntual','Educado','Buena conducción','Vehículo limpio','Buena persona'],4:['Buen servicio','Amable','Llegó a tiempo','Conducción tranquila'],3:['Se demoró','Servicio regular','Podría mejorar','Ruta poco directa'],2:['Se demoró mucho','Conducción brusca','Poco amable','Vehículo sucio'],1:['Fue grosero','Conducción peligrosa','No siguió la ruta','Cobró distinto a lo acordado']};
+const TGD={5:['Puntual','Amable','Respetuoso','Buena comunicación'],4:['Buen trato','Punto de recogida claro','Pagó sin problema'],3:['Se demoró en salir','Cambió el punto de recogida','Poco comunicativo'],2:['Se demoró mucho','Cambió la ruta','Poco respetuoso'],1:['Fue grosero','Se negó a pagar lo acordado','Trato agresivo']};
+const tagsFor=n=>TG[n]||[],tagsForD=n=>TGD[n]||[],HINT='<span class="mut">Elige las estrellas para ver comentarios rápidos</span>';let PRV=ld('prv',[]),RP={stars:0,tags:[],text:''},RZ=0;
+const pst=()=>{const t=12+PRV.length,sm=4.8*12+PRV.reduce((a,r)=>a+r.stars,0);return `★ ${(sm/t).toFixed(1).replace('.',',')} (${t})`};
+function openRateP(){RP={stars:0,tags:[],text:''};renderRP()}
+function renderRP(){$('#modal').className='on';$('#modal').innerHTML=`<div class="mbox"><h3 style="margin-top:0">Califica al pasajero</h3><div style="text-align:center">${[1,2,3,4,5].map(n=>`<button class="star ${RP.stars>=n?'on':''}" onclick="rpS(${n})">★</button>`).join('')}</div><div>${RP.stars?'':HINT}${tagsForD(RP.stars).map((t,i)=>`<button class="c2 ${RP.tags.includes(t)?'on':''}" style="margin:3px" onclick="rpT(${i})">${t}</button>`).join('')}</div><textarea class="t" rows="2" placeholder="Comentario (opcional)" oninput="RP.text=this.value">${esc(RP.text)}</textarea><button class="cta main" onclick="rpSend()">Enviar reseña</button><button class="lnkb" onclick="$('#modal').className=''">Omitir</button></div>`}
+function rpS(n){RP.stars=n;RP.tags=RP.tags.filter(t=>tagsForD(n).includes(t));renderRP()}
+function rpT(i){const t=tagsForD(RP.stars)[i],k=RP.tags.indexOf(t);k<0?RP.tags.push(t):RP.tags.splice(k,1);renderRP()}
+function rpSend(){if(!RP.stars)return toast('Elige de 1 a 5 estrellas.');PRV.unshift({stars:RP.stars,tags:RP.tags,text:RP.text.trim(),d:new Date().toLocaleDateString('es-CO')});sv('prv',PRV);$('#modal').className='';toast('Reseña enviada ✔')}
+function zoomPh(k){const mine=k=='me'||(S.chosen&&S.chosen.me),src=mine?P.photo:null,nm=k=='me'?P.name:(S.chosen?S.chosen.n:P.name);$('#modal').className='on';
+ $('#modal').innerHTML=`<div class="mbox" style="text-align:center">${src?`<img src="${src}" style="width:260px;height:260px;border-radius:50%;object-fit:cover" alt="">`:`<div class="av" style="width:200px;height:200px;font-size:80px;margin:0 auto">${esc((nm||'?')[0])}</div>`}<h3>${esc(nm)}</h3>${src?'':'<p class="mut">Sin foto verificada (demo).</p>'}<button class="cta main" onclick="$('#modal').className=''">Cerrar</button></div>`}
+const avD=()=>S.chosen.me&&P.photo?`<img class="av" src="${P.photo}" onclick="zoomPh('drv')" style="cursor:zoom-in" alt="">`:`<div class="av" onclick="zoomPh('drv')" style="cursor:zoom-in">${esc((S.chosen.n||'?')[0])}</div>`;
+function idYes(){S.idOk=true;note('Confirmaste que es tu conductor');roff();dr()}
+function idNo(){if(!confirm('¿Cancelar el viaje porque el vehículo o el conductor no es el que pediste?'))return;sv('rp',[...ld('rp',[]),{trip:'(en curso)',driver:S.chosen.n,kind:'Vehículo o conductor distinto al solicitado',t:S.chosen.veh+' '+S.chosen.plate,d:new Date().toISOString()}]);S.mm=true;adv('cancelled')}
+const idBox=()=>`<div class="row pend"><b>¿Es este tu conductor y vehículo?</b><div class="mut">${esc(S.chosen.n)} · ${esc(S.chosen.veh)} · ${esc(S.chosen.color)} · <span class="plate">${esc(S.chosen.plate)}</span></div><div class="two"><button class="cta main" onclick="idYes()">Sí, es correcto</button><button class="cta bad" onclick="idNo()">No, es diferente</button></div></div>`;
+function rz(d){RZ=Math.max(S.price+500,RZ+d);roff()}
+function raiseGo(){S.price=RZ;D.ctr=Math.max(D.ctr||0,S.price);note('Subiste tu oferta a '+f(S.price));const nm=['Carlos M.','Laura P.','Andrés R.'],i=S.offers.length%3;
+ T.push(setTimeout(()=>{if(!S.reqOpen)return;const o={n:nm[i],p:S.price,eta:[3,5,7][i],d:[0.8,1.6,2.9][i],veh:VS[S.svc][i],plate:PL[i],color:CLR[i],exp:Date.now()+C.offerTTL*1000,st:'pend'};S.offers.push(o);note(`Nueva oferta de ${o.n}: ${f(o.p)}`);if(S.auto)choose(S.offers.length-1);else{roff();dr()}},1500));roff();dr()}
+function raiseBox(){RZ=Math.max(RZ,S.price+500);return `<div class="pcard2"><b>¿Nadie acepta? Sube tu oferta</b><div class="mut">Los conductores verán el nuevo precio al instante.</div><div class="pbig"><button class="rb" onclick="rz(-500)">−</button><output>${f(RZ)}</output><button class="rb" onclick="rz(500)">+</button></div><div class="chips2">${[500,1000,2000].map(k=>`<button class="c2" onclick="RZ=${S.price+k};roff()">+${f(k)}</button>`).join('')}</div><button class="cta main" onclick="raiseGo()">Subir mi oferta a ${f(RZ)}</button></div>`}
+function setP(v){S.price=Math.max(tariff(S.km).min,v);quote()}
+function setVeh(i){D.act=i;D.veh=D.vehs[i];sv('dact',i);sv('dvhs',D.vehs)}
+function useVeh(i){if(S.chosen&&S.chosen.me&&!['completed','cancelled'].includes(S.status))return toast('Termina tu servicio actual antes de cambiar de vehículo.');if(!D.vehs[i].ok)return toast('Ese vehículo aún no está aprobado.');setVeh(i);D.st='inactive';clearTimeout(D.tm);D.seen=false;if($('#panel').classList.contains('on'))openPanel('pf');dr()}
+function addVeh(){if(D.vehs.length>=2)return;D.vehs.push({mod:D.vehs[0].mod=='moto'?'car':'moto',brand:'',model:'',cc:'',color:'',plate:'',docs:{},ok:false});sv('dvhs',D.vehs);openPanel('pf')}
+function delVeh(i){if(D.vehs.length<2)return;if(i==D.act&&S.chosen&&S.chosen.me&&!['completed','cancelled'].includes(S.status))return toast('Termina tu servicio actual primero.');D.vehs.splice(i,1);setVeh(Math.min(D.act,D.vehs.length-1));D.st='inactive';openPanel('pf')}
+function confirmVeh(k){const v=D.veh;if(!v.ok)return toast('Este vehículo aún no está aprobado. Revisa sus documentos en Perfil.');if(!v.plate||!v.color)return toast('Completa la placa y el color de tu vehículo en Perfil.');
+ const others=D.vehs.map((x,i)=>[x,i]).filter(([x,i])=>i!=D.act&&x.ok&&x.plate&&x.color);
+ $('#modal').className='on';$('#modal').innerHTML=`<div class="mbox"><h3 style="margin-top:0">Confirma tu vehículo</h3><div class="row" style="text-align:center"><div style="font-size:42px">${v.mod=='moto'?'🏍️':'🚗'}</div><b>${esc(vehStr())}</b><br>Color <b>${esc(v.color)}</b><br><span class="plate">${esc(v.plate)}</span></div><p class="mut" style="text-align:center">¿Estás en este vehículo? El pasajero lo comparará al recogerlo.</p><button class="cta main" onclick="$('#modal').className='';D.st='${k}';schedReq();dr()">Sí, estoy en este vehículo</button>${others.map(([x,i])=>`<button class="cta sec" onclick="useVeh(${i});confirmVeh('${k}')">No, estoy en: ${x.mod=='moto'?'Moto':'Auto'} ${esc(x.color)} · ${esc(x.plate)}</button>`).join('')}<button class="lnkb" onclick="$('#modal').className=''">Cancelar</button></div>`}
+const VDOCS=['SOAT','Documento del vehículo','Foto del vehículo y placa','Revisión técnico-mecánica (si aplica)'];
+function attV(vi,j,el){if(!el.files[0])return;const v=D.vehs[vi];v.docs=v.docs||{};v.docs[VDOCS[j]]=el.files[0].name;sv('dvhs',D.vehs);recalc();openPanel('pf')}
+function recalc(){}
+function approveAll(){D.verif='aprobado';sv('dverif','aprobado');D.vehs.forEach(v=>{v.ok=true});sv('dvhs',D.vehs);closeWz();if($('#panel').classList.contains('on'))openPanel('pf');dr();toast('Aprobado (simulación del administrador)')}
+function vehBox(){return `${D.verif!='aprobado'?'<button class="cta sec" onclick="approveAll()">Demo: simular aprobación del administrador</button>':''}<h3>Mis vehículos (máx. 2)</h3><p class="mut">Con una moto solo recibes solicitudes de moto, y con un auto solo de auto. Cada vehículo debe tener sus documentos aprobados.</p>`+D.vehs.map((v,i)=>`<div class="row ${i==D.act?'pend':''}"><div class="top"><b>${v.mod=='moto'?'🏍️ Moto':'🚗 Auto'} ${i==D.act?'· en uso':''}</b><span class="chip ${v.ok?'':'w'}">${v.ok?'Aprobado':'Pendiente'}</span></div>
+ ${v.ok?'':`<div class="two" style="margin:6px 0"><button class="c2 ${v.mod=='moto'?'on':''}" style="flex:1" onclick="vset(${i},'mod','moto')">Moto</button><button class="c2 ${v.mod=='car'?'on':''}" style="flex:1" onclick="vset(${i},'mod','car')">Auto</button></div>`}
+ ${v.ok?`<div class="mut">${esc(vehLabel(v))} · ${esc(v.color||'')}</div>`:vehPick(i)}
+ <input class="t" placeholder="Placa" value="${esc(v.plate||'')}" onchange="D.vehs[${i}].plate=this.value.toUpperCase();sv('dvhs',D.vehs)">
+ ${VDOCS.map((n,j)=>`<div class="top" style="margin-top:8px"><span class="mut">${n}</span><span class="chip ${(v.docs||{})[n]?'w':''}">${(v.docs||{})[n]?'En revisión':'Pendiente'}</span></div><input class="t" type="file" accept="image/*,.pdf" onchange="attV(${i},${j},this)">`).join('')}
+ <div class="two" style="margin-top:8px">${i!=D.act?`<button class="cta sec" onclick="useVeh(${i})">Usar este vehículo</button>`:''}${D.vehs.length>1?`<button class="cta bad" onclick="delVeh(${i})">Eliminar</button>`:''}</div></div>`).join('')+(D.vehs.length<2?'<button class="cta" onclick="addVeh()">+ Agregar otro vehículo</button>':'')}
+let AUTH=ld('auth',null);
+function lgShow(){$('#lg').className='on';$('#lg').innerHTML=`<div class="lgbox"><div style="margin-bottom:8px">${svgi('play','#FFC857',72)}</div><h1 style="margin:0 0 6px">Tu app de transporte</h1><p style="opacity:.9;margin:0 0 28px">Pide moto o auto y negocia tu precio.</p><button class="gbtn" onclick="lgGoogle()"><b style="color:#4285F4">G</b> Continuar con Google</button><button class="gbtn dis" disabled><b style="color:#1877F2">f</b> Facebook (próximamente)</button><p class="lgn">Inicio de sesión simulado en esta demo. En la app real se usa tu cuenta de Google, sin crear contraseñas nuevas.</p></div>`}
+function lgGoogle(){$('#lg').innerHTML=`<div class="lgbox light"><h3 style="margin-top:0">Elige una cuenta</h3><button class="acct" onclick="lgPick()"><div class="av">U</div><div style="text-align:left"><b>Usuario de prueba</b><div class="mut">usuario.prueba@example.com</div></div></button><p class="mut">Cuenta simulada, no es una cuenta real de Google.</p><button class="lnkb" onclick="lgShow()">Cancelar</button></div>`}
+function lgPick(){$('#lg').innerHTML='<div class="lgbox"><div class="spin"></div><p>Cargando tu perfil…</p></div>';setTimeout(lgWelcome,900)}
+function lgWelcome(){$('#lg').innerHTML=`<div class="lgbox light"><h2 style="margin-top:0">¡Hola! 👋</h2><p class="mut">Cargamos tus datos desde tu cuenta. Revísalos y empieza.</p><label class="mut">Nombre</label><input class="t" id="lgn" value="${esc(P.name)}"><label class="mut">Correo</label><input class="t" value="usuario.prueba@example.com" readonly><p class="mut">Tu foto de perfil se sube después y la verifica un administrador.</p><button class="cta main" onclick="lgDone()">Empezar como pasajero</button></div>`}
+function lgDone(){const n=($('#lgn').value||'').trim()||'Usuario';AUTH={name:n,email:'usuario.prueba@example.com',provider:'google'};sv('auth',AUTH);P.name=n;P.email=AUTH.email;sv('p',P);$('#lg').className='';toast('Bienvenido, '+n)}
+function logout(){AUTH=null;sv('auth',null);closeDrawer();closeP();closeWz();setMode('p');lgShow()}
+let W=ld('wz',{step:0,nm:'',dt:'CC',dn:'',ph:'',idf:'',idb:'',selfie:'',lic:'',licexp:'',mod:'moto',brand:'',cc:'',color:'',plate:'',soat:'',soatexp:'',vdoc:'',vph:'',tm:'',tmexp:'',ok:false});
+const WS=['Empezar','Tus datos','Identidad','Licencia','Vehículo','Documentos del vehículo','Revisar y enviar'],wsv=()=>sv('wz',W);
+const fld=(l,k,t='text',ph='')=>`<label class="mut">${l}</label><input class="t" type="${t}" placeholder="${ph}" value="${esc(W[k])}" oninput="W['${k}']=this.value;wsv()">`;
+const fil=(l,k,opt)=>`<label class="mut">${l}${opt?' (opcional)':''}</label><input class="t" type="file" accept="image/*,.pdf" onchange="wf('${k}',this)"><div class="mut" id="wf_${k}">${W[k]?'✔ '+esc(W[k]):''}</div>`;
+function wf(k,el){W[k]=el.files[0]?el.files[0].name:'';wsv();const d=$('#wf_'+k);if(d)d.textContent=W[k]?'✔ '+W[k]:''}
+function openWz(){$('#wz').className='on';renderWz()}
+function closeWz(){$('#wz').className=''}
+function renderWz(){const rv=D.verif=='en_revision',x=Math.min(6,W.step);let b='';
+ if(rv)b=`<div style="text-align:center;font-size:56px">⏳</div><h2 style="text-align:center">Tu solicitud está en revisión</h2><p class="mut" style="text-align:center">Un administrador revisa tus documentos manualmente. No se consultan bases oficiales: se revisan las fotos y datos que subiste.</p><button class="cta sec" onclick="approveAll()">Demo: simular aprobación del administrador</button>`;
+ else if(x==0)b='<p>Para ser conductor necesitas:</p><ul><li>Documento de identidad (frente y reverso) y una selfie sosteniéndolo</li><li>Licencia de conducción vigente</li><li>Datos y foto de tu vehículo</li><li>SOAT, documento del vehículo y, si aplica, revisión técnico-mecánica</li></ul><p class="mut">Un administrador revisará todo antes de que puedas recibir solicitudes. Solo pedimos lo necesario.</p>';
+ else if(x==1)b=fld('Nombre completo (como en tu documento)','nm')+`<label class="mut">Tipo de documento</label><select class="t" onchange="W.dt=this.value;wsv()">${['CC','CE','PEP','Pasaporte'].map(o=>`<option ${W.dt==o?'selected':''}>${o}</option>`).join('')}</select>`+fld('Número de documento','dn')+fld('Celular','ph','tel','300 000 0000');
+ else if(x==2)b=fil('Documento de identidad — frente','idf')+fil('Documento de identidad — reverso','idb')+fil('Selfie sosteniendo tu documento','selfie')+'<p class="mut">Si el administrador lo necesita, más adelante podrá pedirte un video corto de verificación.</p>';
+ else if(x==3)b=fil('Foto de la licencia de conducción','lic')+fld('Fecha de vencimiento','licexp','date');
+ else if(x==4)b=`<div class="two"><button class="c2 ${W.mod=='moto'?'on':''}" style="flex:1" onclick="vset('w','mod','moto')">🏍️ Moto</button><button class="c2 ${W.mod=='car'?'on':''}" style="flex:1" onclick="vset('w','mod','car')">🚗 Auto</button></div>`+vehPick('w')+fld('Placa','plate');
+ else if(x==5)b=fil('SOAT','soat')+fld('Vencimiento del SOAT','soatexp','date')+fil('Documento del vehículo (tarjeta de propiedad)','vdoc')+fil('Foto del vehículo mostrando la placa','vph')+fil('Revisión técnico-mecánica y de gases','tm',true)+fld('Vencimiento de la técnico-mecánica','tmexp','date')+'<p class="mut">La técnico-mecánica solo se exige cuando corresponde por ley. Si aplica a tu vehículo, súbela.</p>';
+ else b=`<div class="row"><b>${esc(W.nm)}</b><div class="mut">${W.dt} ${esc(W.dn)} · ${esc(W.ph)}</div></div><div class="row"><b>${W.mod=='moto'?'🏍️':'🚗'} ${esc(vehLabel(W))}</b><div class="mut">Color ${esc(W.color)} · placa <span class="plate">${esc((W.plate||'').toUpperCase())}</span></div></div><div class="tg"><span>Autorizo el tratamiento de mis datos personales y documentos para verificar mi cuenta de conductor. (Texto legal pendiente de revisión jurídica.)</span><button class="sw ${W.ok?'on':''}" onclick="W.ok=!W.ok;wsv();renderWz()"></button></div>`;
+ $('#wz').innerHTML=`<div class="wzh"><button class="c2" onclick="closeWz();setMode('p')">← Modo pasajero</button>${rv?'':`<span class="mut">Paso ${x+1} de 7</span>`}</div>${rv?'':`<div class="bar"><i style="width:${(x+1)*100/7}%"></i></div><h2>${WS[x]}</h2>`}<div class="wzb">${b}</div>`+(rv?'':`<div class="two wzf">${x>0?'<button class="cta sec" onclick="wzBack()">Atrás</button>':''}<button class="cta main" onclick="wzNext()">${x==6?'Enviar a revisión':x==0?'Empezar':'Continuar'}</button></div>`)}
+function wzNext(){const x=W.step,need={1:['nm','dn','ph'],2:['idf','idb','selfie'],3:['lic','licexp'],4:['brand','model','color','plate','cc'],5:['soat','soatexp','vdoc','vph']}[x]||[];
+ if(need.some(k=>!String(W[k]||'').trim()))return toast('Completa todos los campos obligatorios.');
+ if(x==4&&(W.brand=='Otra marca'||W.model=='Otro modelo')&&!String(W.other||'').trim())return toast('Escribe la marca y el modelo de tu vehículo.');
+ if(x==6){if(!W.ok)return toast('Debes autorizar el tratamiento de datos para continuar.');return wzSubmit()}
+ W.step=x+1;wsv();renderWz()}
+function wzBack(){W.step=Math.max(0,W.step-1);wsv();renderWz()}
+function wzSubmit(){const v=D.vehs[0];Object.assign(v,{mod:W.mod,brand:W.brand,model:W.model,other:W.other||'',cc:W.cc,color:W.color,plate:W.plate.toUpperCase(),docs:{'SOAT':W.soat,'Documento del vehículo':W.vdoc,'Foto del vehículo y placa':W.vph,'Revisión técnico-mecánica (si aplica)':W.tm},ok:false});D.docs[DOCS[0]]=W.lic;sv('dvhs',D.vehs);D.verif='en_revision';sv('dverif','en_revision');renderWz()}
+function resetDrv(){D.verif='incompleto';sv('dverif','incompleto');W.step=0;wsv();D.vehs.forEach(v=>{v.ok=false});sv('dvhs',D.vehs);D.st='inactive';toast('Registro de conductor reiniciado (demo)')}
+const CAT={moto:{
+ 'Honda':[['CB 125F',125],['CB 160F',160],['XR 150L',150],['XR 190L',190],['Navi',110],['Wave 110S',110],['Dio 110',110]],
+ 'Yamaha':[['FZ 150',150],['FZ 2.0',150],['XTZ 125',125],['XTZ 150',150],['YBR 125',125],['Crypton 110',110],['BWS 125',125],['MT-15',155],['NMAX 155',155]],
+ 'Suzuki':[['GN 125',125],['Gixxer 150',150],['AX4 110',110],['DR 150',150],['Intruder 150',150],['Burgman 125',125]],
+ 'AKT':[['NKD 125',125],['TT 125',125],['CR4 125',125]],
+ 'Bajaj':[['Boxer CT 100',100],['Platina 100',100],['Discover 125',125],['Pulsar 150',150],['Pulsar NS 160',160],['Dominar 400',400]],
+ 'TVS':[['Raider 125',125],['Sport 100',100],['Star City 110',110],['Apache RTR 160',160],['Apache RTR 200',200]],
+ 'Hero':[['Eco Deluxe 100',100],['Ignitor 125',125],['Hunk 160R',160],['Xpulse 200',200]],
+ 'Kymco':[['Agility 125',125]],
+ 'KTM':[['Duke 200',200],['Duke 250',250],['Duke 390',390]],
+ 'Royal Enfield':[['Hunter 350',350],['Classic 350',350],['Himalayan 411',411]],
+ 'Kawasaki':[['KLX 150',150],['Ninja 400',400],['Z400',400]]},
+ car:{
+ 'Chevrolet':[['Spark GT','1.2'],['Sail','1.4'],['Onix','1.2'],['Aveo','1.4'],['Tracker','1.2']],
+ 'Renault':[['Logan','1.6'],['Sandero','1.6'],['Stepway','1.6'],['Duster','1.6'],['Kwid','1.0'],['Clio','1.2']],
+ 'Kia':[['Picanto','1.2'],['Rio','1.4'],['Cerato','1.6'],['Sportage','2.0']],
+ 'Mazda':[['2','1.5'],['3','2.0'],['CX-30','2.0'],['CX-5','2.5']],
+ 'Hyundai':[['i10','1.1'],['Grand i10','1.2'],['Accent','1.4'],['Creta','1.6'],['Tucson','2.0']],
+ 'Nissan':[['March','1.6'],['Versa','1.6'],['Sentra','1.8'],['Kicks','1.6']],
+ 'Toyota':[['Yaris','1.5'],['Corolla','1.8'],['Hilux','2.4']],
+ 'Volkswagen':[['Gol','1.6'],['Polo','1.6'],['Virtus','1.6']],
+ 'Suzuki':[['Alto','0.8'],['Celerio','1.0'],['Swift','1.2'],['Vitara','1.4']],
+ 'Ford':[['Fiesta','1.6'],['EcoSport','2.0'],['Focus','2.0']],
+ 'Fiat':[['Uno','1.0'],['Mobi','1.0']],
+ 'Peugeot':[['208','1.2'],['2008','1.6']]}};
+const CCS={moto:[100,110,125,150,155,160,190,200,250,350,390,400,411],car:['0.8','1.0','1.1','1.2','1.4','1.5','1.6','1.8','2.0','2.4','2.5']};
+const COLORS=['Negro','Blanco','Gris','Plata','Rojo','Azul','Verde','Amarillo','Naranja','Beige','Marrón','Otro'];
+const vehLabel=v=>`${v.mod=='moto'?'Moto':'Auto'} ${(v.brand=='Otra marca'||v.model=='Otro modelo')?(v.other||''):`${v.brand||''} ${v.model||''}`} ${v.cc&&!String(v.model||'').includes(String(v.cc))?(v.mod=='moto'?v.cc+' cc':v.cc):''}`.replace(/\s+/g,' ').trim();
+function vget(k){return k=='w'?W:D.vehs[+k]}
+function vset(k,f,val){const o=vget(k);o[f]=val;if(f=='mod'||f=='brand'){o.model='';o.cc='';if(f=='mod')o.brand=''}
+ if(f=='model'){const m=(CAT[o.mod][o.brand]||[]).find(x=>x[0]==val);if(m)o.cc=String(m[1])}
+ if(k=='w'){wsv();renderWz()}else{sv('dvhs',D.vehs);openPanel('pf')}}
+function vehPick(k){const o=vget(k),cat=CAT[o.mod]||{},models=cat[o.brand]||[],mt=o.mod=='moto',other=o.brand=='Otra marca'||o.model=='Otro modelo';
+ const op=(l,sel,ph)=>`<option value="">${ph}</option>`+l.map(x=>`<option ${x==sel?'selected':''}>${x}</option>`).join('');
+ return `<label class="mut">Marca</label><select class="t" onchange="vset('${k}','brand',this.value)">${op([...Object.keys(cat),'Otra marca'],o.brand,'Selecciona la marca')}</select>
+ <label class="mut">Modelo</label><select class="t" onchange="vset('${k}','model',this.value)" ${o.brand?'':'disabled'}>${op([...models.map(m=>m[0]),'Otro modelo'],o.model,'Selecciona el modelo')}</select>
+ ${other?`<input class="t" placeholder="Escribe marca y modelo (lo revisa el administrador)" value="${esc(o.other||'')}" oninput="vget('${k}').other=this.value;${k=='w'?'wsv()':"sv('dvhs',D.vehs)"}">`:''}
+ <div class="two"><div style="flex:1"><label class="mut">Cilindraje${mt?' (cc)':' (L)'}</label><select class="t" onchange="vset('${k}','cc',this.value)">${op(CCS[o.mod].map(String),String(o.cc||''),'Elige')}</select></div><div style="flex:1"><label class="mut">Color</label><select class="t" onchange="vset('${k}','color',this.value)">${op(COLORS,o.color,'Elige')}</select></div></div>`}
+const perKm=p=>S.km?Math.round(p/S.km):0,perKmAll=p=>S.km?Math.round(p/(S.km+D.dist)):0;
+function ptag(p){const t=tariff(S.km,S.svc),r=p<t.ref*0.85?['Precio bajo','#B0443B','#FBE3E0']:p<=t.ref*1.1?['Precio recomendado','#8a6100','#FFF4D9']:['Precio alto','#0F766E','#DDF1EF'];return `<span class="pill2" style="color:${r[1]};background:${r[2]}">${r[0]}</span>`}
+function tickAge(){const e=document.querySelectorAll('[data-age]');if(!e.length||!S.t0)return;const n=Math.max(0,Math.floor((Date.now()-S.t0)/1000)),t=n<60?n+' s':Math.floor(n/60)+' min '+(n%60)+' s';e.forEach(x=>x.textContent=t)}
+function initIcons(){document.querySelectorAll('.mi').forEach(e=>e.innerHTML=svgi('map','#fff',30));[['req','list'],['per','perf'],['wal','wallet']].forEach(([t,n])=>document.querySelector(`#dn [data-t=${t}] b`).innerHTML=svgi(n,'#123047',30))}
+// ---- estado
+let P=ld('p',{name:'Usuario de prueba',svc:'car',pay:'Efectivo'}),H=ld('h',[]),DH=ld('dh',[]),N=ld('nt',[]),CFG=ld('cf',{snd:true}),MODE='p';
+let CH=[],OV='',SVk='',SVs='',CC=null,CCN='',dmk,PEND={p:null,d:null},PK='a',pmap;const PHOTO_DAYS=30,getCH=()=>CC||CH;
+const VS={moto:['Moto TVS Raider 125 cc','Moto Yamaha XTZ 125 cc','Moto Bajaj Boxer CT 100 cc'],car:['Chevrolet Spark GT 1.2','Renault Logan 1.6','Kia Picanto 1.2']},PL=['ABC12D','XYZ34E','JKL56F'],CLR=['Negra','Blanca','Roja'];
+let D={nav:ld('dnav',null),qs:ld('dqs',['¿La dirección de la app es correcta?','Voy en camino, ¿me confirma su ubicación?','Estoy afuera, ¿dónde lo espero?']),autoSend:ld('das',true),passed:false,st:'inactive',dist:3,seen:false,tm:0,online:false,tab:'req',verif:ld('dverif','incompleto'),docs:{},ctr:0,vehs:ld('dvhs',[{mod:'moto',brand:'',cc:'',color:'',plate:'',docs:{},ok:false}]),act:ld('dact',0),veh:null,acc:ld('dac',PAYS.slice())};D.act=Math.min(D.act,D.vehs.length-1);D.veh=D.vehs[D.act];
+let S={svc:'car',pick:null,dest:null,km:0,mins:0,price:0,offers:[],chosen:null,code:'',status:'',reqOpen:false,from:'',to:'',pay:'Efectivo',auto:false},pm,dm,rl,T=[],SR=[],RC=[];
+const DOCS=['Licencia de conducción','SOAT','Documento del vehículo','Foto del vehículo y placa','Revisión técnico-mecánica (si aplica)'];
+const VL={incompleto:'Registro incompleto',en_revision:'En revisión',aprobado:'Aprobado'};
+const NX={confirmed:'en_route',en_route:'arrived',arrived:'in_progress',in_progress:'completed'};
+const LB={confirmed:'Viaje confirmado ✅',en_route:'Conductor en camino 🚗',arrived:'Conductor en el punto de recogida 📍',in_progress:'Viaje iniciado ▶️',completed:'Viaje finalizado 🏁',cancelled:'Viaje cancelado'};
+const todayIso=()=>new Date().toLocaleDateString('en-CA');
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';setTimeout(()=>e.style.display='none',3600)}
+function beep(){if(!CFG.snd)return;try{const a=new AudioContext(),o=a.createOscillator();o.connect(a.destination);o.frequency.value=880;o.start();setTimeout(()=>{o.stop();a.close()},160)}catch(e){}}
+function note(t){N.unshift({t,d:new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}),r:0});N=N.slice(0,30);sv('nt',N);$('#fab').classList.add('has');dr()}
+document.addEventListener('pointerdown',e=>{if(e.target.closest('button')&&navigator.vibrate)navigator.vibrate(8)});
+function svc(s){S.svc=s;P.svc=s;sv('p',P);$('#bm').className=s=='moto'?'on':'';$('#bc').className=s=='car'?'on':'';if(S.km){S.price=tariff(S.km).ref;quote()}}
+async function lbl(ll){try{const j=await(await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat=${ll.lat}&lon=${ll.lng}`)).json();return(j.display_name||'').split(',').slice(0,2).join(',')||'Punto en el mapa'}catch(e){return ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)}}
+function setPick(ll,gps){S.pick=ll;if(!pm){pm=L.marker(ll,{icon:icL('A','#0F766E'),draggable:true}).addTo(map);pm.on('dragend',()=>setPick(pm.getLatLng(),false))}else pm.setLatLng(ll);lbl(ll).then(t=>{S.from=t;$('#pl').textContent=(gps?'Mi ubicación · ':'')+t});route()}
+function setDest(ll,text){S.dest=ll;if(!dm){dm=L.marker(ll,{icon:icL('B','#FFC857','#123047'),draggable:true}).addTo(map);dm.on('dragend',()=>setDest(dm.getLatLng()))}else dm.setLatLng(ll);if(text){S.to=text;$('#q').value=text}else lbl(ll).then(t=>{S.to=t;$('#q').value=t});$('#res').innerHTML='';route()}
+map.on('click',e=>{if(MODE!='p'||!$('#offBox').hidden)return;setDest(e.latlng)});
+async function route(){if(!S.pick||!S.dest)return;S.km=0;$('#quote').innerHTML='<p class="mut">Calculando ruta…</p>';
+ try{const j=await(await fetch(`https://router.project-osrm.org/route/v1/driving/${S.pick.lng},${S.pick.lat};${S.dest.lng},${S.dest.lat}?overview=full&geometries=geojson`)).json();if(j.code!=='Ok')throw 0;const r=j.routes[0];
+  S.km=Math.round(r.distance/100)/10;S.mins=Math.max(1,Math.round(r.duration/60));S.price=tariff(S.km).ref;
+  S.geo=r.geometry;if(rl)rl.remove();rl=L.geoJSON(r.geometry,{style:{color:'#0F766E',weight:6}}).addTo(map);map.fitBounds(rl.getBounds(),{paddingTopLeft:[30,80],paddingBottomRight:[30,380]});quote()}
+ catch(e){$('#quote').innerHTML='<p class="err">No pude calcular la ruta (¿sin conexión?). No muestro precio para no inventarlo.</p>'}}
+function quote(){const t=tariff(S.km),r=Math.min(1,Math.max(0,(S.price-t.min)/Math.max(1,t.ref*1.5-t.min))),lab=S.price<t.ref*0.85?['Bajo: puede tardar en aceptarse','#B0443B','#FBE3E0']:S.price<=t.ref*1.1?['Precio justo','#8a6100','#FFF4D9']:['Alto: lo aceptarán rápido','#0F766E','#DDF1EF'];
+ $('#quote').innerHTML=`<div class="pcard2"><div class="top"><span class="mut" style="margin:0">${S.km} km · ~${S.mins} min · ${t.night?'nocturna':'diurna'}</span><span class="pill2" style="color:${lab[1]};background:${lab[2]}">${lab[0]}</span></div>
+ <div class="pbig"><button class="rb" onclick="bump(-500)" aria-label="Bajar">−</button><output>${f(S.price)}</output><button class="rb" onclick="bump(500)" aria-label="Subir">+</button></div>
+ <div class="meter"><i style="left:${(r*100).toFixed(0)}%"></i></div><div class="top mut" style="font-size:12px;margin:0"><span>Mínimo ${f(t.min)}</span><span>Recomendada ${f(t.ref)}</span></div>
+ <div class="chips2">${[['Recomendada',t.ref],['+$500',S.price+500],['+$1.000',S.price+1000],['+$2.000',S.price+2000]].map(([n,v])=>`<button class="c2" onclick="setP(${v})">${n}</button>`).join('')}</div><div class="mut" style="font-size:12px;margin-top:6px">Sin precio máximo${S.svc=='car'?' · valores de auto provisionales':''}</div></div>
+ <div class="tg"><span>Aceptar automáticamente la primera oferta de ${f(S.price)}</span><button class="sw ${S.auto?'on':''}" onclick="S.auto=!S.auto;quote()" aria-label="Aceptar automáticamente"></button></div>
+ <div class="two" style="align-items:flex-end"><select style="width:auto;margin:0;margin-top:7px;height:54px" onchange="P.pay=this.value;sv('p',P)">${PAYS.map(x=>`<option ${x==P.pay?'selected':''}>${x}</option>`).join('')}</select><button class="cta main" style="flex:1" onclick="send()">Encontrar ofertas</button></div>`}
+function bump(d){S.price=Math.max(tariff(S.km).min,S.price+d);quote()}
+function recents(){const u=[];H.forEach(h=>{if(h.dll&&!u.find(x=>x.to==h.to))u.push(h)});RC=u.slice(0,4);$('#res').innerHTML=RC.map((r,i)=>`<div onclick="goRecent(${i})">🕘 ${esc(r.to)}</div>`).join('')}
+function goRecent(i){const r=RC[i],ll=L.latLng(r.dll.lat,r.dll.lng);setDest(ll,r.to);map.setView(ll,15)}
+$('#q').addEventListener('keydown',async e=>{if(e.key!=='Enter')return;const q=e.target.value.trim();if(!q)return;
+ try{SR=await(await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=4&countrycodes=co&viewbox=-74.35,11.35,-74.05,11.1&q='+encodeURIComponent(q+' Santa Marta'))).json();
+  $('#res').innerHTML=SR.length?SR.map((r,i)=>`<div onclick="pickRes(${i})">📍 ${esc(r.display_name.split(',').slice(0,3).join(','))}</div>`).join(''):'<p class="mut">Sin resultados. Toca el mapa para marcar el destino.</p>'}
+ catch(err){$('#res').innerHTML='<p class="err">No pude buscar. Toca el mapa para marcar el destino.</p>'}});
+function pickRes(i){const r=SR[i];const ll=L.latLng(+r.lat,+r.lon);setDest(ll,r.display_name.split(',').slice(0,2).join(','));map.setView(ll,15)}
+function show(x){$('#planBox').hidden=x;$('#offBox').hidden=!x}
+// ---- negociación con vigencia de 10 s por oferta
+const live=o=>o.st=='pend'&&Date.now()<o.exp;
+function send(){if(S.price<tariff(S.km).min){quote();return}
+ T.forEach(clearTimeout);S.offers=[];S.chosen=null;S.status='';S.reqOpen=true;S.pay=P.pay;D.ctr=S.price;D.passed=false;CH=[];S.code=String(1000+Math.floor(Math.random()*9000));show(true);roff();
+ S.t0=Date.now();schedReq();note('Solicitud enviada: '+f(S.price));
+ [['Carlos M.',0,3,0.8],['Laura P.',1500,5,1.6],['Andrés R.',3000,7,2.9]].forEach((d,i)=>T.push(setTimeout(()=>{if(!S.reqOpen)return;const o={n:d[0],p:S.price+d[1],eta:d[2],d:d[3],veh:VS[S.svc][i],plate:PL[i],color:CLR[i],exp:Date.now()+C.offerTTL*1000,st:'pend'};S.offers.push(o);note(`Nueva oferta de ${d[0]}: ${f(o.p)}`);
+  if(S.auto&&o.p<=S.price)choose(S.offers.length-1);else{roff();dr()}},1500*(i+1))))}
+function choose(i){const o=S.offers[i];if(!o||!live(o)){toast('La oferta ya venció.');return}
+ S.offers.forEach(x=>{if(x.st=='pend')x.st='rej'});o.st='ok';S.chosen=o;S.reqOpen=false;S.status='en_route';S.idOk=false;S.t1=Date.now()+o.eta*60000;S.tl='Llega en';S.dstart=L.latLng(S.pick.lat-o.d/111,S.pick.lng);CH=[];if(o.me){note('¡Tu oferta fue aceptada!');if(D.autoSend&&D.qs[0])CH.push({f:'d',t:D.qs[0]})}roff();dr();drvMarker()}
+function rej(i){S.offers[i].st='rej';if(S.offers[i].me)note('El pasajero rechazó tu oferta');roff();dr()}
+function retry(){S.price+=500;S.reqOpen=false;show(false);quote()}
+function advX(to){if(to=='completed'&&S.chosen&&S.chosen.me&&MODE=='d')setTimeout(openRateP,350);if(to=='arrived'){S.t1=0;S.tl='Tu conductor llegó'}if(to=='in_progress'){S.t1=Date.now()+S.mins*60000;S.tl='Llegas en'}
+ if(to=='completed'||to=='cancelled'){S.t1=0;S.tl='';if(dmk){dmk.remove();dmk=null}}
+ if(to=='cancelled'){const who=MODE=='d'?'El conductor':'El pasajero';PEND[MODE=='d'?'p':'d']=S.mm?'El pasajero indicó que el vehículo o conductor no coincide con el solicitado y canceló el viaje.':who+' canceló el viaje.';S.mm=false;note(who+' canceló el viaje (se notificó a la otra persona)')}}
+function moveD(pr){const a=S.pick,s0=S.dstart;if(!a||!s0)return;const ll=L.latLng(s0.lat+(a.lat-s0.lat)*pr,s0.lng+(a.lng-s0.lng)*pr);if(!dmk)dmk=L.marker(ll,{icon:icL(S.svc=='moto'?'🛵':'🚗','#123047')}).addTo(map);else dmk.setLatLng(ll)}
+function drvMarker(){if(!S.chosen||!S.dstart)return;moveD(0);map.fitBounds(L.latLngBounds([S.pick,S.dstart]),{paddingTopLeft:[30,80],paddingBottomRight:[30,400]})}
+function tickEta(){const e=$('#etaT');if(!e||!S.chosen)return;const st=S.status;let pr=0,km=0;
+ if(S.t1){const l=Math.max(0,S.t1-Date.now());e.textContent=Math.floor(l/60000)+':'+String(Math.floor(l%60000/1000)).padStart(2,'0');
+  if(st=='en_route'){pr=1-l/(S.chosen.eta*60000);km=S.chosen.d*(1-pr)}else if(st=='in_progress')km=S.km*l/(S.mins*60000)}else{e.textContent='✔';pr=1}
+ const L2=$('#etaL');if(L2)L2.textContent=S.tl||'';const K=$('#etaK');if(K)K.textContent=km.toFixed(1).replace('.',',')+' km';
+ if(S.dstart&&(st=='en_route'||st=='arrived'))moveD(Math.min(1,Math.max(0,pr)))}
+function adv(to){S.status=to;advX(to);if(to=='completed')RT={stars:0,tags:[],text:'',sent:false};note(LB[to]);
+ if(to=='completed'||to=='cancelled'){const h={d:new Date().toLocaleDateString('es-CO'),from:S.from,to:S.to,dll:S.dest?{lat:S.dest.lat,lng:S.dest.lng}:null,p:S.chosen.p,n:S.chosen.n,st:to=='completed'?'Completado':'Cancelado',stars:0,veh:S.chosen.veh,plate:S.chosen.plate,color:S.chosen.color,by:to=='cancelled'?MODE:'',chat:CH.slice()};H.unshift(h);sv('h',H);
+  if(S.chosen.me){DH.unshift({d:h.d,iso:todayIso(),from:S.from,to:S.to,p:to=='completed'?h.p:0,c:to=='cancelled'?1:0,pay:S.pay,km:S.km});sv('dh',DH)}}roff();dr()}
+function rateSet(n){RT.stars=n;RT.tags=RT.tags.filter(t=>tagsFor(n).includes(t));roff()}function tagT(i){const t=tagsFor(RT.stars)[i],k=RT.tags.indexOf(t);k<0?RT.tags.push(t):RT.tags.splice(k,1);roff()}
+function sendRev(){if(!RT.stars)return toast('Elige de 1 a 5 estrellas.');const n=S.chosen.n;if(RT.match===false){sv('rp',[...ld('rp',[]),{trip:'(recién terminado)',driver:n,kind:'Vehículo o conductor distinto al solicitado',t:(S.chosen.veh||'')+' '+(S.chosen.plate||''),d:new Date().toISOString()}]);note('Reportaste que el vehículo o conductor no coincidía')}(RV[n]=RV[n]||[]).unshift({stars:RT.stars,tags:RT.tags.slice(),text:RT.text.trim(),d:new Date().toLocaleDateString('es-CO')});sv('rv',RV);H[0].stars=RT.stars;sv('h',H);RT.sent=true;roff()}
+function roff(){const v=S.svc=='moto'?'Moto':'Auto',st=S.status;
+ if(S.chosen){let h=`<h2 style="margin:4px 0">${LB[st]}</h2><div class="row"><div style="float:right">${avD()}</div><b>${esc(S.chosen.n)}</b> · ${star(S.chosen.n)}<br>🚘 <b>${esc(S.chosen.veh)}</b> · ${esc(S.chosen.color)}<br><span class="plate">${esc(S.chosen.plate)}</span><br>📍 A ${S.chosen.d.toFixed(1).replace('.',',')} km de ti · llega en ~${S.chosen.eta} min<br>Precio acordado: <b>${f(S.chosen.p)}</b><br>Pago: <b>${esc(S.pay)}</b> (directo al conductor)</div>${['en_route','arrived','in_progress'].includes(st)?'<div class="row eta"><div class="mut" id="etaL"></div><div class="big" id="etaT" style="font-size:36px">…</div><div class="mut">📍 <span id="etaK"></span> · se actualiza en vivo en el mapa</div></div>':''}<div class="three"><button class="big3" onclick="openChat()">${svgi('chat','#123047',34)}<span>Chat${CH.length?' ('+CH.length+')':''}</span></button><button class="big3" onclick="callApp()">${svgi('call','#123047',34)}<span>Llamadas</span></button><button class="big3" onclick="callTel()">${svgi('mobile','#123047',34)}<span>Móvil</span></button></div><button class="c2" style="width:100%" onclick="showDrv('${S.chosen.n}')">Ver calificaciones y comentarios</button>`;
+  
+  if(!S.chosen.me&&NX[st])h+=`<button class="cta" onclick="adv('${NX[st]}')">Simular avance del conductor (demo)</button>`;
+  if(['confirmed','en_route','arrived'].includes(st))h+=`<button class="cta bad" onclick="adv('cancelled')">Cancelar viaje</button>`;
+  if(st=='completed')h+=RT.sent?'<div class="row">¡Gracias! Tu calificación quedó registrada ✔</div>':`<div class="row"><b>¿El conductor y el vehículo eran los que pediste?</b><div class="two"><button class="c2 ${RT.match===true?'on':''}" style="flex:1" onclick="RT.match=true;roff()">Sí</button><button class="c2 ${RT.match===false?'on':''}" style="flex:1" onclick="RT.match=false;roff()">No</button></div></div><p class="mut">Califica a tu conductor:</p><div>${[1,2,3,4,5].map(n=>`<button class="star ${RT.stars>=n?'on':''}" onclick="rateSet(${n})">★</button>`).join('')}</div><div>${RT.stars?'':HINT}${tagsFor(RT.stars).map((t,i)=>`<button class="c2 ${RT.tags.includes(t)?'on':''}" style="margin:3px" onclick="tagT(${i})">${t}</button>`).join('')}</div><textarea class="t" rows="2" placeholder="Comentario (opcional)" oninput="RT.text=this.value">${esc(RT.text)}</textarea><button class="cta" onclick="sendRev()">Enviar calificación</button>`;
+  if(st=='completed'||st=='cancelled')h+=`<button class="cta sec" onclick="reset()">Volver al inicio</button>`;
+  $('#offBox').innerHTML=h;return}
+ const any=S.offers.some(live);
+ $('#offBox').innerHTML=`<h2 style="margin:4px 0">${any?'Ofertas recibidas':'Buscando ofertas…'}</h2><p class="mut">Tu propuesta: <b>${f(S.price)}</b> · tienes ${C.offerTTL} s para decidir cada oferta · conductores SIMULADOS</p>`+
+ S.offers.map((o,i)=>`<div class="row ${live(o)?'pend':'dim'}"><div class="top"><span><b class="lnk" onclick="showDrv('${o.n}')">${esc(o.n)}</b><br><span class="mut">${star(o.n)}</span><br><b>🚘 ${esc(o.veh)}</b><br><span class="mut">pago ${esc(S.pay)} · a ${o.d.toFixed(1).replace('.',',')} km de ti · llega en ${o.eta} min</span></span><span class="big">${f(o.p)}</span></div>`+
+  (live(o)?`<div class="cdw" data-exp="${o.exp}"><div class="bar"><i></i></div><div class="mut">Decide en <b></b></div></div><div class="two"><button class="cta" onclick="choose(${i})">Aceptar</button><button class="cta bad" onclick="rej(${i})">Rechazar</button></div>`:`<div class="mut">${o.st=='rej'?'Rechazada':'Tiempo agotado'}</div>`)+'</div>').join('')+
+ (S.offers.length&&!any&&T.every(t=>!t)?'':'')+raiseBox()+'<button class="cta bad" onclick="reset()">Cancelar solicitud</button>'}
+function reset(){T.forEach(clearTimeout);if(dmk){dmk.remove();dmk=null}S.t1=0;clearTimeout(D.tm);D.seen=false;S.offers=[];S.chosen=null;S.reqOpen=false;S.status='';show(false);recents();dr()}
+setInterval(()=>{let ch=false;S.offers.forEach(o=>{if(o.st=='pend'&&Date.now()>=o.exp){o.st='exp';ch=true;if(o.me)note('Tu oferta expiró')}});
+ if(ch){roff();dr();return}document.querySelectorAll('.cdw').forEach(w=>{const l=Math.max(0,(+w.dataset.exp-Date.now())/1000);w.querySelector('i').style.width=(l/C.offerTTL*100)+'%';w.querySelector('b').textContent=Math.ceil(l)+' s'});tickEta();tickAge()},250);
+// ---- modo conductor
+let GOAL=ld('dgoal',50000);
+function setSt(k){if(k!='inactive'&&D.verif!='aprobado')return toast('Tu cuenta no está aprobada: no puedes recibir solicitudes.');
+ if(k=='inactive'&&D.st!='inactive'){const hoy=DH.filter(x=>x.iso==todayIso()).reduce((a,x)=>a+x.p,0);if(hoy<GOAL)return confirmDisc(GOAL-hoy)}
+ if(k!='inactive'&&D.st=='inactive')return confirmVeh(k);D.st=k;schedReq();dr()}
+function confirmDisc(falt){$('#modal').className='on';$('#modal').innerHTML=`<div class="mbox"><div style="font-size:54px;text-align:center">🪙</div><h2 style="text-align:center">${f(falt)}<br><span style="font-weight:600;font-size:18px">para lograr tu objetivo diario</span></h2><p class="mut" style="text-align:center">¿Quieres desconectarte?</p><button class="cta main" onclick="$('#modal').className=''">Mantenerse en línea</button><button class="cta bad" onclick="$('#modal').className='';D.st='inactive';schedReq();dr()">Desconectarse</button></div>`}
+// Entrega escalonada: 1 km = 1 s; 'Ocupado' suma 20 s; 'Inactivo' nunca la recibe
+function schedReq(){clearTimeout(D.tm);D.seen=false;if(!S.reqOpen||D.st=='inactive'||D.verif!='aprobado'||D.veh.mod!=S.svc)return;
+ const ms=Math.max(0,(D.dist+(D.st=='busy'?20:0))*1000-(Date.now()-S.t0));
+ D.tm=setTimeout(()=>{if(!S.reqOpen)return;D.seen=true;beep();note('Nueva solicitud a '+D.dist.toFixed(1).replace('.',',')+' km de ti');if(MODE=='d'&&D.tab=='req')openReq();else dr()},ms)}
+let rmap,rm=[];
+function openOv(k){OV=k;SVk='';SVs='';$('#rq').className='on';k=='req'?renderReq(true):renderSv(true)}
+function openReq(){if(!S.reqOpen||!D.seen||D.passed)return;openOv('req')}
+function closeReq(){$('#rq').className='';OV=''}
+function ovl(){const on=$('#rq').classList.contains('on'),act=S.chosen&&S.chosen.me&&!['completed','cancelled'].includes(S.status);
+ if(act){if(!on||OV!='sv')openOv('sv');else renderSv();return}
+ if(on){if(OV=='req'&&S.reqOpen&&D.st!='inactive'&&!D.passed)renderReq();else closeReq()}}
+function drawMap(kind){setTimeout(async()=>{if(!rmap){rmap=L.map('rmap',{zoomControl:false});L.tileLayer(TP[ti][0],{maxZoom:19}).addTo(rmap)}rmap.invalidateSize();rm.forEach(x=>x.remove());rm=[];
+ const a=S.pick,b=S.dest;if(!a||!b)return;const run=S.status=='in_progress',dl=run?a:L.latLng(a.lat-D.dist/111,a.lng);
+ if(S.geo)rm.push(L.geoJSON(S.geo,{style:{color:'#0F766E',weight:5}}).addTo(rmap));
+ rm.push(L.marker(a,{icon:icL('A','#0F766E')}).addTo(rmap),L.marker(b,{icon:icL('B','#FFC857','#123047')}).addTo(rmap));
+ if(!run){rm.push(L.marker(dl,{icon:icL(D.veh.mod=='moto'?'🛵':'🚗','#123047')}).addTo(rmap));
+  if(kind=='req')rm.push(L.polyline([dl,a],{color:'#123047',dashArray:'6 8'}).addTo(rmap));
+  else{try{const j=await(await fetch(`https://router.project-osrm.org/route/v1/driving/${dl.lng},${dl.lat};${a.lng},${a.lat}?overview=full&geometries=geojson`)).json();if(j.code!=='Ok')throw 0;rm.push(L.geoJSON(j.routes[0].geometry,{style:{color:'#123047',weight:6}}).addTo(rmap))}catch(e){rm.push(L.polyline([dl,a],{color:'#123047',dashArray:'6 8'}).addTo(rmap))}}}
+ rmap.fitBounds(L.latLngBounds([a,b,dl]),{padding:[45,45]})},80)}
+function renderReq(first){const my=[...S.offers].reverse().find(o=>o.me),wait=my&&live(my),dk=D.dist.toFixed(1).replace('.',','),oth=S.offers.filter(o=>!o.me&&live(o)),best=oth.length?Math.min(...oth.map(o=>o.p)):0;
+ $('#xb').style.display='';$('#rchip').textContent=`Estás a ${dk} km de la recogida · ~${Math.max(1,Math.round(D.dist*2.5))} min`;
+ $('#rinfo').innerHTML=`<div class="top">${avt()}<div style="flex:1;padding:0 10px;min-width:0"><b>${esc(P.name)}</b> <span class="mut">${pst()}</span><div class="mut">⏱ Activa hace <b data-age>…</b> · ~${S.km} km · ~${S.mins} min</div></div><div style="text-align:right"><div class="big" style="font-size:30px">${f(S.price)}</div>${ptag(S.price)}</div></div><div class="row eta" style="margin:6px 0;padding:8px">💰 <b>${f(perKm(S.price))} por km</b> del viaje</div>
+ <div class="addr"><span class="ab a">A</span>${esc(S.from)}</div><div class="addr"><span class="ab b">B</span>${esc(S.to)}</div><div style="margin:4px 0"><span class="tag n">${esc(S.pay)}</span><span class="tag m">${S.svc=='moto'?'Moto':'Auto'}</span><span class="mut">${oth.length?oth.length+' oferta(s) de otros · mejor '+f(best):'Sin otras ofertas aún'}</span></div>`+
+ (wait?`<div class="row cdw pend" data-exp="${my.exp}" style="margin:6px 0"><b>Tu oferta: ${f(my.p)}</b><div class="bar"><i></i></div><div class="mut">Esperando al pasajero · <b></b></div></div>`:
+ `<button class="cta main xl" onclick="dOffer(S.price)">Aceptar por ${f(S.price)}<br><small>${f(perKm(S.price))} por km</small></button><div class="two" style="align-items:center"><div class="stp"><button onclick="ctr(-500)">−</button><output>${f(ctrv())}</output><button onclick="ctr(500)">+</button></div><button class="cta sec xl ${ctrv()>S.price?'':'dis'}" style="flex:1" onclick="dOffer(ctrv())">Contraofertar<br><small>${f(perKm(ctrv()))} por km</small></button></div>`)+
+ `<button class="lnkb" onclick="closeReq()">Cerrar (la solicitud sigue en tu lista)</button>`;if(first)drawMap('req')}
+function renderSv(force){const st=S.status,k=st+'|'+CH.length+'|'+(S.idOk?1:0);if(!force&&k==SVk)return;SVk=k;const dk=D.dist.toFixed(1).replace('.',',');
+ $('#xb').style.display='none';$('#rchip').textContent={en_route:`Hacia la recogida · ${dk} km · ~${Math.max(1,Math.round(D.dist*2.5))} min`,arrived:'Esperando al pasajero',in_progress:`Hacia el destino · ${S.km} km · ~${S.mins} min`}[st]||'';
+ $('#rinfo').innerHTML=`<div class="top">${avt()}<div style="flex:1;padding:0 10px;min-width:0"><b>${esc(P.name)}</b> <span class="mut">${pst()}</span></div><div style="text-align:right"><div class="big">${f(S.chosen.p)}</div><span class="tag n">${esc(S.pay)}</span></div></div>
+ <div class="addr"><span class="ab a">A</span>${esc(S.from)}</div><div class="addr"><span class="ab b">B</span>${esc(S.to)}</div>
+ <div class="three"><button class="big3" onclick="openChat()">${svgi('chat','#123047',34)}<span>Chat${CH.length?' ('+CH.length+')':''}</span></button><button class="big3" onclick="callApp()">${svgi('call','#123047',34)}<span>Llamadas</span></button><button class="big3" onclick="callTel()">${svgi('mobile','#123047',34)}<span>Móvil</span></button><button class="big3" onclick="navGo()">${svgi('nav','#123047',34)}<span>Navegar</span></button><button class="big3" onclick="drawMap('sv')">${svgi('map','#123047',34)}<span>Mapa</span></button></div>`+
+ (st=='en_route'?'<button class="cta main xl" onclick="adv(\'arrived\')">Llegué al punto de recogida</button>':st=='arrived'?'<button class="cta main xl" onclick="adv(\'in_progress\')">'+svgi('play','#123047',24)+' Iniciar viaje</button>':'<button class="cta main xl" onclick="adv(\'completed\')">Finalizar viaje</button>')+
+ (st!='in_progress'?'<button class="lnkb" onclick="if(confirm(\'¿Cancelar el servicio?\'))adv(\'cancelled\')">Cancelar servicio</button>':'');
+ if(SVs!=st||force){SVs=st;drawMap('sv')}}
+// ---- chat
+function navGo(){if(!D.nav)return navPick();const t=S.status=='in_progress'?S.dest:S.pick;if(!t)return;
+ window.open({gmaps:`https://www.google.com/maps/dir/?api=1&destination=${t.lat},${t.lng}&travelmode=driving`,waze:`https://waze.com/ul?ll=${t.lat},${t.lng}&navigate=yes`,geo:`geo:${t.lat},${t.lng}?q=${t.lat},${t.lng}`}[D.nav],'_blank')}
+function navPick(){$('#modal').className='on';$('#modal').innerHTML=`<div class="mbox"><h3 style="margin-top:0">¿Con qué navegador?</h3>${[['gmaps','Google Maps'],['waze','Waze'],['geo','Otra app de mapas']].map(([k,n])=>`<button class="cta ${k=='gmaps'?'main':'sec'}" onclick="D.nav='${k}';sv('dnav','${k}');$('#modal').className='';navGo()">${n}</button>`).join('')}<p class="mut">Lo recordamos para la próxima vez. Puedes cambiarlo en Configuración.</p><button class="lnkb" onclick="$('#modal').className=''">Cancelar</button></div>`}
+function openChat(){$('#chat').className='on';$('#cname').textContent=CC?CCN:MODE=='d'?P.name+' (pasajero)':S.chosen.n+' (conductor)';renderChat()}
+function closeChat(){$('#chat').className='';CC=null}
+function renderChat(){const me=MODE=='d'?'d':'p',qs=MODE=='d'&&!CC?D.qs.filter(Boolean):['Sí, es correcta','Estoy en la puerta','Ya voy para allá'];
+ $('#cq').innerHTML=qs.map(q=>`<button class="c2" style="white-space:nowrap" onclick="sendMsg(this.textContent)">${esc(q)}</button>`).join('');
+ $('#cm').innerHTML=getCH().map(m=>`<div class="msg ${m.f==me?'me':'ot'}">${esc(m.t)}</div>`).join('')||'<p class="mut" style="text-align:center">Aún no hay mensajes.</p>';$('#cm').scrollTop=1e6}
+function sendMsg(t){const i=$('#ci2');t=(t||i.value).trim();if(!t)return;getCH().push({f:MODE=='d'?'d':'p',t});if(CC)sv('h',H);i.value='';renderChat();if(MODE=='d'&&!CC)renderSv()}
+function callApp(){toast('Llamada por internet: se implementará con un servicio de voz (WebRTC). No está disponible en esta maqueta.')}
+function callTel(){toast('En la app real se abre el marcador con el número de la otra persona, visible solo durante el servicio.')}
+const ctrv=()=>Math.max(S.price,D.ctr||S.price);
+function ctr(d){D.ctr=Math.max(S.price,ctrv()+d);dr()}
+const vehStr=()=>vehLabel(D.veh);
+function dOffer(p){const bz=S.offers.find(o=>o.me&&live(o));if(bz)return toast('Ya tienes una oferta en espera. Espera la respuesta del pasajero ('+Math.ceil((bz.exp-Date.now())/1000)+' s).');if(!(p>=S.price))return toast('La contraoferta no puede ser menor a '+f(S.price));S.offers=S.offers.filter(o=>!o.me);S.offers.push({n:ME,me:true,veh:vehStr(),plate:D.veh.plate||'—',color:D.veh.color||'—',p,eta:Math.max(1,Math.round(D.dist*2.5)),d:D.dist,exp:Date.now()+C.offerTTL*1000,st:'pend'});roff();dr()}
+function dAdv(to){if(to=='in_progress'&&$('#cd').value!==S.code)return toast('Código de inicio incorrecto.');adv(to)}
+function dr(){if(MODE!='d')return;const td=todayIso(),hoy=DH.filter(x=>x.iso==td).reduce((a,x)=>a+x.p,0),un=N.filter(n=>!n.r).length;
+ $('#dh').innerHTML=`<div class="dtop"><button class="ic" onclick="openDrawer()">☰</button><div class="seg s${['inactive','busy','active'].indexOf(D.st)}"><b></b>${[['inactive','Inactivo'],['busy','Ocupado'],['active','Disponible']].map(([k,n])=>`<span onclick="setSt('${k}')">${n}</span>`).join('')}</div><button class="ic" onclick="openPanel('nt')">${svgi('bell','#fff',28)}${un?'<i class="badge"></i>':''}</button></div><div class="cards2"><div class="card2"><div class="mut">Ingresos de hoy</div><div class="big">${f(hoy)}</div></div><div class="card2"><div class="mut">Saldo en la app</div><div class="big">$0</div></div></div>`;
+ document.querySelectorAll('#dn button').forEach(b=>b.classList.toggle('on',b.dataset.t==D.tab));
+ let h='<div>';
+ if(D.tab=='req'){const st=S.status;
+  if(S.chosen&&S.chosen.me&&!['completed','cancelled'].includes(st)){h+='<div class="row req">Servicio en curso…</div>'}
+  else if(D.verif!='aprobado')h+=`<div class="row">Aún no puedes recibir solicitudes. Estado: <b>${VL[D.verif]}</b>.<button class="cta sec" onclick="openPanel('pf')">Completar documentos</button></div>`;
+  else if(D.st=='inactive')h+='<div class="row mut">Estás inactivo: no recibes solicitudes. Cambia a <b>Ocupado</b> o <b>Disponible</b> arriba. (Ocupado las recibe 20 s después.)</div>';
+  else if(S.reqOpen&&D.seen&&!D.passed&&D.veh.mod==S.svc){h+=`<div class="row req" onclick="openReq()" style="cursor:pointer"><div class="top">${avt(false)}<div style="flex:1;padding:0 10px;min-width:0"><b>${esc(P.name)}</b> <span class="mut">${pst()}</span><div class="mut">⏱ hace <b data-age>…</b> · ${f(perKm(S.price))} por km</div></div><div style="text-align:right"><div class="big">${f(S.price)}</div>${ptag(S.price)}</div></div><div class="mut">📍 ${esc(S.from)}<br>🏁 ${esc(S.to)}</div><span class="tag n">${esc(S.pay)}</span><span class="tag m">${S.svc=='moto'?'Moto':'Auto'}</span> <span class="mut">a ${D.dist.toFixed(1).replace('.',',')} km de ti</span></div>`}
+  else{if(S.chosen&&!S.chosen.me)h+='<div class="row mut">La última solicitud fue asignada a otro conductor.</div>';
+   h+=`<div class="radar"><i></i><i></i><i></i><b>🚕</b></div><p style="text-align:center;font-weight:700;font-size:18px">Buscando solicitudes cercanas…</p><p class="mut" style="text-align:center">${12+1} conductores activos en Santa Marta (simulado)${D.veh.mod!=S.svc&&S.reqOpen?'<br>Hay una solicitud, pero es para '+(S.svc=='moto'?'moto':'auto')+' y tu vehículo es '+(D.veh.mod=='moto'?'moto':'auto'):''}</p>`}}
+ if(D.tab=='wal')h+=`<div class="row"><div class="mut">Saldo en la app</div><div class="big">$0</div><div class="mut">0 bonos</div><p class="mut">En esta versión la app no cobra comisión ni maneja dinero: el pasajero te paga directamente. Aquí vivirán las recargas y bonos en el futuro.</p></div>
+  <div class="row"><b>Métodos de pago que aceptas</b>${PAYS.map(x=>`<div class="tg"><span>${x}</span><button class="sw ${D.acc.includes(x)?'on':''}" onclick="accT('${x}')" aria-label="${x}"></button></div>`).join('')}</div>
+  <h4>Últimos servicios</h4>`+(DH.slice(0,5).map(x=>`<div class="row top"><span>${esc(x.d)} · ${esc(x.pay||'')}<br><span class="mut">${esc(x.from)} → ${esc(x.to)}</span></span><b>${f(x.p)}</b></div>`).join('')||'<div class="row mut">Aún no hay servicios.</div>');
+ if(D.tab=='per'){const ms=td.slice(0,7),mes=DH.filter(x=>!x.c&&(x.iso||'').startsWith(ms)).length,wk=DH.filter(x=>!x.c&&x.iso>=new Date(Date.now()-6*864e5).toLocaleDateString('en-CA')).length,sx=stats(ME),
+   LV=[['Básico',0],['Plata',10],['Oro',25],['Platino',50]];let ci=0;LV.forEach((l,i)=>{if(wk>=l[1])ci=i});const nx=LV[ci+1],pr=nx?Math.min(100,Math.round((wk-LV[ci][1])*100/(nx[1]-LV[ci][1]))):100,
+   L=[['Primer viaje',DH.filter(x=>!x.c).length>=1],['5 viajes completados',DH.filter(x=>!x.c).length>=5],['Calificación 4,8 o más (mín. 3 reseñas)',sx.t>=3&&sx.avg>=4.8]],goal=GOAL;
+  h+=`<div class="row" style="background:#D9F4FF"><div class="top"><div><div class="big">${LV[ci][0]} 💎</div><div class="mut">Tu nivel esta semana · ${star(ME)}</div></div>${avt()}</div>
+   <div class="row" style="background:#BDEBFF;margin-bottom:0"><b>${nx?`${nx[1]-wk} viajes a ${nx[0]}`:'¡Nivel máximo!'}</b><div class="bar"><i style="width:${pr}%;background:var(--navy)"></i></div><div class="mut">Mantén la calificación 4,80+</div></div><button class="cta" style="background:#fff;box-shadow:none" onclick="toast('Los beneficios se definirán en una versión futura.')">Ver beneficios</button></div>
+   <div class="row" onclick="openPanel('ing')" style="cursor:pointer"><div class="mut">Ingresos de hoy (acordados) ›</div><div class="top"><div class="big">${f(hoy)}</div><span class="mut">Objetivo: ${f(goal)}</span></div><div class="bar"><i style="width:${Math.min(100,hoy*100/goal)}%"></i></div></div>
+   <div class="row top"><span>Viajes este mes</span><b>${mes}</b></div><div class="row top"><span>Viajes esta semana</span><b>${wk}</b></div>
+   <div class="row"><b>Bonificaciones</b><div class="mut">Aún no hay bonificaciones activas. Se habilitarán en una versión futura.</div></div>
+   <div class="row"><b>Logros</b>${L.map(([n,ok])=>`<div class="top" style="margin-top:6px"><span>${ok?'🏆':'🔒'} ${n}</span><span class="chip ${ok?'':'w'}">${ok?'Logrado':'Pendiente'}</span></div>`).join('')}</div><button class="cta sec" onclick="openPanel('ing')">Ver ingresos</button><button class="cta sec" onclick="openPanel('hs')">Historial de solicitudes</button><button class="cta sec" onclick="showDrv(ME)">Ver mis comentarios</button>`}
+ $('#dc').innerHTML=h+'</div>';ovl()}
+function accT(x){const k=D.acc.indexOf(x);k<0?D.acc.push(x):D.acc.splice(k,1);sv('dac',D.acc);dr()}
+// ---- menú y pantallas
+function openDrawer(){const d=MODE=='d',un=N.filter(n=>!n.r).length,it=(ic,t,fn,b)=>`<button class="it" onclick="${fn}"><span>${ic}&nbsp; ${t}</span>${b?`<span class="bdg">${b}</span>`:''}</button>`;
+ $('#drawer').innerHTML=`<div class="dhd" onclick="openPanel('pf')" style="cursor:pointer">${avt(false)}<div><b>${esc(P.name)}</b><div class="mut">${d?star(ME):'Pasajero · cuenta de prueba'}</div></div><span style="margin-left:auto;font-size:28px">›</span></div>
+ ${d?it(svgi('list'),'Solicitudes',"closeDrawer();D.tab='req';dr()")+it(svgi('wallet'),'Cartera',"closeDrawer();D.tab='wal';dr()"):it(svgi('history'),'Mis viajes',"openPanel('tr')")}
+ ${it(svgi('bell'),'Notificaciones',"openPanel('nt')",un||'')}${it(svgi('shield'),'Seguridad',"openPanel('sg')")}${it(svgi('sliders'),'Configuración',"openPanel('cf')")}${it(svgi('user'),'Perfil'+(d?' y documentos':''),"openPanel('pf')")}${it(svgi('help'),'Ayuda',"openPanel('hp')")}${it(svgi('logout'),'Cerrar sesión','logout()')}
+ <div style="flex:1"></div><div style="padding:14px 18px"><button class="cta main" onclick="setMode('${d?'p':'d'}')">Modo ${d?'pasajero':'conductor'}</button></div>`;document.body.classList.add('open')}
+function closeDrawer(){document.body.classList.remove('open')}function closeP(){$('#panel').className='panel'}
+function openPick(k){PK=k;$('#pk').className='on';$('#ptitle').textContent=k=='a'?'Mueve el mapa: punto de recogida':'Mueve el mapa: destino';$('#pgps').style.display=k=='a'?'':'none';$('#ppin').innerHTML=pinSvg(k);
+ setTimeout(()=>{if(!pmap){pmap=L.map('pmap',{zoomControl:false});L.tileLayer(TP[ti][0],{maxZoom:19}).addTo(pmap);pmap.on('movestart',()=>$('#ppin').classList.add('lift'));pmap.on('moveend',pkMoved)}pmap.invalidateSize();pmap.setView((k=='a'?S.pick:S.dest)||S.pick||L.latLng(C.city),17);pkMoved()},60)}
+async function pkMoved(){$('#ppin').classList.remove('lift');const c=pmap.getCenter();$('#plbl').textContent='Buscando dirección…';const t=await lbl(c);if(c.distanceTo(pmap.getCenter())<2)$('#plbl').textContent=t}
+function pkOk(){const c=pmap.getCenter();closePick();PK=='a'?setPick(c,false):setDest(c)}
+function closePick(){$('#pk').className=''}
+function pkGps(){navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>pmap.setView([p.coords.latitude,p.coords.longitude],17),()=>toast('No pude leer tu GPS.')):toast('Sin GPS.')}
+function alertM(t){$('#modal').className='on';$('#modal').innerHTML=`<div class="mbox"><div style="font-size:48px;text-align:center">⚠️</div><h3 style="text-align:center">${esc(t)}</h3><button class="cta main" onclick="$('#modal').className=''">Entendido</button></div>`}
+function setMode(m){setTimeout(()=>{if(PEND[m]){alertM(PEND[m]);PEND[m]=null}},400);MODE=m;closeReq();closeChat();closeDrawer();$('#sheet').style.display=m=='p'?'':'none';$('#fab').style.display=m=='p'?'':'none';$('#dv').style.display=m=='d'?'flex':'none';if(m=='d')dr();if(m=='d'&&D.verif!='aprobado')openWz();toast(m=='d'?'Modo conductor':'Modo pasajero')}
+function openPanel(k){closeDrawer();if(k=='nt'){N.forEach(n=>n.r=1);sv('nt',N);$('#fab').classList.remove('has');dr()}const p=$('#panel');p.className='panel on';p.innerHTML=`<button class="c2" onclick="closeP()">← Volver</button>`+({pf:profile,tr:trips,nt:notifs,sg:safety,cf:config,hp:help,ing:ing,hs:hs})[k]()}
+let IP='d',HF='all';
+function ing(){const now=new Date(),inR=x=>{const t=new Date(x.iso+'T00:00:00');return IP=='d'?x.iso==todayIso():IP=='w'?(now-t)/864e5<7:x.iso.slice(0,7)==todayIso().slice(0,7)},L=DH.filter(x=>!x.c&&inR(x)),tot=L.reduce((a,x)=>a+x.p,0),km=L.reduce((a,x)=>a+(x.km||0),0);
+ return`<div class="tabs2">${[['d','Día'],['w','Semana'],['m','Mes']].map(([k,n])=>`<button class="c2 ${IP==k?'on':''}" onclick="IP='${k}';openPanel('ing')">${n}</button>`).join('')}</div><div class="big" style="font-size:38px;text-align:center;margin:14px 0 0">${f(tot)}</div><p class="mut" style="text-align:center">Ingresos acordados (pago directo)</p>
+ ${IP=='d'?`<div class="row" style="background:#D9F7C2"><div class="top"><b>Plan de ingresos diarios</b><b>${f(GOAL)}</b></div><div class="bar"><i style="width:${Math.min(100,tot*100/GOAL)}%"></i></div><div class="mut">${tot>=GOAL?'¡Alcanzaste tu plan diario!':'Te faltan '+f(GOAL-tot)}</div></div>`:''}
+ <div class="row top" style="text-align:center"><div><b>${L.length}</b><div class="mut">Solicitudes</div></div><div><b>${km.toFixed(1).replace('.',',')} km</b><div class="mut">Kilometraje</div></div><div><b>${f(km?Math.round(tot/km):0)}</b><div class="mut">Por km</div></div></div>
+ <div class="row top"><span>Recibido (solo tarifas)</span><b>${f(tot)}</b></div><div class="row top"><span>Comisión de la app</span><b>$0</b></div>`}
+function hs(){let last='';const L=DH.filter(x=>HF=='all'||(HF=='ok'?!x.c:x.c));return`<h2>Historial de solicitudes</h2><div>${[['all','Todas'],['ok','Completados'],['x','Cancelados']].map(([k,n])=>`<button class="c2 ${HF==k?'on':''}" onclick="HF='${k}';openPanel('hs')">${n}</button>`).join(' ')}</div>`+(L.map(x=>{const h=x.d!=last?`<h4>${esc(x.d)}</h4>`:'';last=x.d;return h+`<div class="row top"><span>${x.c?'<span style="color:var(--bad)">Cancelado por ti</span><br>':''}<b>${esc(x.to)}</b><br><span class="mut">${esc(x.from)} · ${esc(x.pay||'')}</span></span><b>${f(x.p)}</b></div>`}).join('')||'<div class="row mut">Sin solicitudes.</div>')}
+function trips(){return`<h2>Mis viajes</h2><p class="mut">Tus últimos 20 viajes. Toca uno para ver al conductor, contactarlo o reportar un problema.</p>`+(H.length?H.slice(0,20).map((x,i)=>`<div class="row" onclick="openTrip(${i})" style="cursor:pointer"><div class="top"><b>${esc(x.d)} · ${x.st}</b><b>${f(x.p)}</b></div><div class="mut">${esc(x.from)} → ${esc(x.to)}<br>${esc(x.n)} ${x.veh?'· '+esc(x.veh):''} ${x.stars?'· '+'★'.repeat(x.stars):''}</div></div>`).join(''):'<div class="row mut">Aún no tienes viajes. Pide el primero desde el mapa 🚕</div>')}
+function openTrip(i){const x=H[i],p=$('#panel');p.className='panel on';p.innerHTML=`<button class="c2" onclick="openPanel('tr')">← Volver</button><h2>Viaje del ${esc(x.d)}</h2><div class="row"><div class="top"><b>${x.st}</b><b>${f(x.p)}</b></div><div class="mut">${esc(x.from)} → ${esc(x.to)}</div></div>
+ <div class="row"><b>Conductor</b><div class="top"><span>${esc(x.n)}<br><span class="mut">🚘 ${esc(x.veh||'—')} · ${esc(x.plate||'')}<br>${star(x.n)}</span></span><button class="c2" onclick="showDrv('${x.n}')">Perfil</button></div></div>
+ <p class="mut">¿Olvidaste algo o tuviste un problema? Contacta al conductor o repórtalo.</p><div class="three"><button class="big3" onclick="openTripChat(${i})">${svgi('chat','#123047',34)}<span>Chat</span></button><button class="big3" onclick="callApp()">${svgi('call','#123047',34)}<span>Llamadas</span></button><button class="big3" onclick="callTel()">${svgi('mobile','#123047',34)}<span>Móvil</span></button></div>
+ <h4>Reportar un problema</h4><select id="rk" class="t"><option>Dejé un objeto olvidado</option><option>Conducción peligrosa</option><option>Trato inadecuado</option><option>Cobro distinto al acordado</option><option>Situación grave</option><option>Otro</option></select><textarea class="t" id="rt2" rows="2" placeholder="Cuéntanos qué pasó"></textarea><button class="cta sec" onclick="repTrip(${i})">Enviar queja o reporte</button><p class="mut">En la app real el reporte llega al administrador, que puede suspender cuentas.</p>`}
+function repTrip(i){const t=$('#rt2').value.trim();if(!t)return toast('Cuéntanos qué pasó.');sv('rp',[...ld('rp',[]),{trip:H[i].d,driver:H[i].n,kind:$('#rk').value,t,d:new Date().toISOString()}]);toast('Reporte guardado (demo).');openPanel('tr')}
+function openTripChat(i){CC=H[i].chat=H[i].chat||[];CCN=H[i].n+' (conductor)';openChat()}
+function notifs(){return`<h2>Notificaciones</h2><p class="mut">En la app real llegan como notificaciones push al celular.</p>`+(N.map(n=>`<div class="row">${esc(n.t)}<div class="mut">${n.d}</div></div>`).join('')||'<div class="row mut">Sin notificaciones.</div>')}
+function safety(){return`<h2>Seguridad</h2><a class="cta" style="display:flex;align-items:center;justify-content:center;background:#E8004A;color:#fff;text-decoration:none;box-shadow:none" href="tel:123">${svgi('call','#fff',26)}&nbsp; Llamar al 123</a><p class="mut">Abre el marcador de tu teléfono. Esta app no tiene soporte de emergencia integrado: en una emergencia llama al 123.</p>
+ <div class="row"><b>Identificación del conductor</b><div class="mut">Al aceptar una oferta ves su nombre, foto, vehículo, color y placa. Al final del viaje te preguntamos si el conductor y el vehículo eran los pedidos; si respondes que no, queda reportado.</div></div>
+ <div class="row"><b>Cómo estás protegido</b><div class="mut">• Los conductores suben sus documentos y un administrador los revisa manualmente (no se consultan bases oficiales).<br>• Puedes ver calificaciones y comentarios antes de aceptar.<br>• Puedes reportar un incidente aquí abajo.</div></div>
+ <h4>Reportar un incidente</h4><textarea class="t" id="rt" rows="3" placeholder="Cuéntanos qué pasó"></textarea><button class="cta sec" onclick="const t=$('#rt').value.trim();if(!t)return toast('Escribe qué pasó.');sv('rp',[...ld('rp',[]),{t,d:new Date().toISOString()}]);toast('Reporte guardado (demo). En la app real llega al administrador.');closeP()">Enviar reporte</button>`}
+function config(){return`<h2>Configuración</h2><div class="row"><div class="tg"><span>Sonidos de solicitudes</span><button class="sw ${CFG.snd?'on':''}" onclick="CFG.snd=!CFG.snd;sv('cf',CFG);openPanel('cf')"></button></div><div class="tg"><span>Apariencia</span><span class="mut">Claro (oscuro: próximamente)</span></div><div class="tg"><span>Unidades</span><span class="mut">Kilómetros</span></div><div class="tg"><span>Idioma</span><span class="mut">Español</span></div></div>
+ <div class="row"><b>Registro de conductor (demo)</b><div class="mut">Vuelve a empezar el proceso para probarlo de nuevo.</div><button class="c2" onclick="resetDrv()">Reiniciar registro</button></div>
+ <div class="row"><b>Meta diaria de ingresos (conductor)</b><div class="mut">Tú decides cuánto quieres ganar al día.</div><input class="t" type="number" step="1000" value="${GOAL}" onchange="GOAL=Math.max(0,+this.value||0);sv('dgoal',GOAL)"></div>
+ <div class="row"><b>Navegador</b><div class="mut">App con la que navegas hasta la recogida y el destino.</div>${[['gmaps','Google Maps'],['waze','Waze'],['geo','Otra']].map(([k,n])=>`<button class="c2 ${D.nav==k?'on':''}" onclick="D.nav='${k}';sv('dnav','${k}');openPanel('cf')">${n}</button>`).join(' ')}</div>
+ <div class="row"><b>Distancia simulada del conductor a la recogida</b><div class="mut">Para probar el orden de llegada: 1 km = 1 s, 5 km = 5 s… (Ocupado suma 20 s)</div>${[1,3,5,10].map(k=>`<button class="c2 ${D.dist==k?'on':''}" onclick="D.dist=${k};openPanel('cf')">${k} km</button>`).join(' ')}</div>
+ <div class="row"><div class="tg"><span>Documentos legales</span><span class="mut">Pendiente</span></div><div class="tg"><span>Versión</span><span class="mut">Prototipo 0.5</span></div></div>
+ <button class="cta bad" onclick="toast('Solicitud de eliminación registrada (demo).')">🗑 Eliminar cuenta</button>`}
+function help(){return`<h2>Ayuda</h2>`+[['¿Cómo funciona la negociación?','Tú propones un precio. Los conductores aceptan o contraofertan y tienes 20 segundos para aceptar o rechazar cada oferta.'],['¿Cómo pago?','El pago se acuerda y se hace directamente con el conductor (efectivo, Nequi, Llave, DaviPlata o Bancolombia). La app no procesa pagos.'],['Mi documento venció','Si un documento obligatorio vence, tu disponibilidad se suspende hasta que subas el nuevo y sea aprobado.'],['Problemas con la aplicación','Escríbenos desde Seguridad > Reportar un incidente (demo).']].map(([q,a])=>`<details><summary>${q}</summary><p class="mut">${a}</p></details>`).join('')}
+const avt=(z=true)=>{const oc=z?` onclick="zoomPh('me')" style="cursor:zoom-in"`:'';return P.photo?`<img class="av" src="${P.photo}"${oc} alt="">`:`<div class="av"${oc}>${esc((P.name||'?')[0])}</div>`};
+const photoLeft=()=>P.photo?Math.max(0,Math.ceil(PHOTO_DAYS-(Date.now()-(P.pat||0))/864e5)):0;
+function photoBox(){const L=photoLeft(),st=P.pend?'pending':P.photo?'approved':'none',can=st=='none'||(st=='approved'&&L==0);
+ return `<div class="row"><b>Foto de perfil</b><div class="top" style="margin-top:8px;justify-content:flex-start;gap:12px">${P.pend?`<img class="av" src="${P.pend}" alt="">`:avt()}<div class="mut">${{none:'Sin foto.',pending:'En verificación: aún no la ven otros usuarios.',approved:L?`Aprobada. Podrás cambiarla en ${L} día(s).`:'Aprobada. Ya puedes cambiarla.'}[st]}</div></div>
+ ${can?'<input class="t" type="file" accept="image/*" onchange="upPhoto(this)">':''}${st=='pending'?`<button class="cta sec" onclick="P.photo=P.pend;P.pend=null;P.pat=Date.now();sv('p',P);openPanel('pf')">Demo: simular aprobación del administrador</button>`:''}${st=='approved'&&L?`<button class="c2" onclick="P.pat-=${PHOTO_DAYS}*864e5;sv('p',P);openPanel('pf')">Demo: simular que pasaron ${PHOTO_DAYS} días</button>`:''}
+ <p class="mut">Un administrador revisa cada foto antes de mostrarla, y solo puedes cambiarla una vez cada ${PHOTO_DAYS} días. En la demo la imagen se guarda solo en tu navegador.</p></div>`}
+function upPhoto(el){const fl=el.files[0];if(!fl)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),z=160;c.width=c.height=z;const m=Math.min(im.width,im.height);c.getContext('2d').drawImage(im,(im.width-m)/2,(im.height-m)/2,m,m,0,0,z,z);P.pend=c.toDataURL('image/jpeg',.8);sv('p',P);openPanel('pf')};im.src=r.result};r.readAsDataURL(fl)}
+function profile(){const d=MODE=='d';let h=`<h2>Perfil</h2><div class="mut">Cuenta: ${esc(P.email||'—')} (Google)</div><label class="mut">Nombre visible</label><input class="t" value="${esc(P.name)}" onchange="P.name=this.value;sv('p',P)">
+ ${photoBox()}
+ ${d?'':`<p class="mut">Método de pago preferido (se acuerda y paga directo; la app no procesa pagos)</p><div style="display:flex;flex-wrap:wrap;gap:6px">${PAYS.map(x=>`<button class="c2 ${P.pay==x?'on':''}" onclick="P.pay='${x}';sv('p',P);openPanel('pf')">${x}</button>`).join('')}</div>
+ <p class="mut">Servicio preferido</p><div class="svcs"><button class="${P.svc=='moto'?'on':''}" onclick="svc('moto');openPanel('pf')"><span>🏍️</span>Moto</button><button class="${P.svc=='car'?'on':''}" onclick="svc('car');openPanel('pf')"><span>🚗</span>Auto</button></div>`}`;
+ if(d){h+=vehBox()+`<h3>Chat: preguntas rápidas</h3><p class="mut">Un toque y se envía al pasajero. La primera puede enviarse sola al aceptar un viaje.</p>${[0,1,2].map(i=>`<input class="t" value="${esc(D.qs[i]||'')}" onchange="D.qs[${i}]=this.value;sv('dqs',D.qs)">`).join('')}<div class="tg"><span>Enviar la primera automáticamente al aceptar</span><button class="sw ${D.autoSend?'on':''}" onclick="D.autoSend=!D.autoSend;sv('das',D.autoSend);openPanel('pf')"></button></div><h3>Verificación del conductor</h3><div class="row">Estado: <b>${VL[D.verif]}</b></div><div class="row"><div class="top"><span>${DOCS[0]}</span><span class="chip ${D.docs[DOCS[0]]?'w':''}">${D.docs[DOCS[0]]?'En revisión':'Pendiente'}</span></div>${D.docs[DOCS[0]]?`<div class="mut">${esc(D.docs[DOCS[0]])}</div>`:''}<input class="t" type="file" accept="image/*,.pdf" onchange="att(0,this)"></div><p class="mut">Demo: los archivos NO se suben a ningún sitio. En la app real van a un almacenamiento privado que solo ve el administrador.</p><button class="cta sec" onclick="approveAll()">Simular aprobación del administrador</button>`}
+ return h}
+function att(i,el){if(!el.files[0])return;D.docs[DOCS[i]]=el.files[0].name;recalc();openPanel('pf')}
+// ---- arranque
+svc(P.svc);recents();initIcons();if(!AUTH)lgShow();
+if(navigator.geolocation)navigator.geolocation.getCurrentPosition(p=>{const ll=L.latLng(p.coords.latitude,p.coords.longitude);map.setView(ll,16);setPick(ll,true)},
+ ()=>{toast('No pude leer tu GPS. Arrastra el marcador verde a tu posición.');setPick(L.latLng(C.city),false)},{enableHighAccuracy:true,timeout:8000});
+else{toast('Tu navegador no tiene GPS. Arrastra el marcador verde.');setPick(L.latLng(C.city),false)}
+</script></body></html>
